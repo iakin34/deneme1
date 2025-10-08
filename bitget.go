@@ -9,6 +9,7 @@ import (
         "fmt"
         "io"
         "net/http"
+        "net/url"
         "strconv"
         "strings"
         "sync"
@@ -250,27 +251,93 @@ func (b *BitgetAPI) SetLeverage(symbol string, leverage int) error {
 
 func (b *BitgetAPI) GetSymbolPrice(symbol string) (float64, error) {
         endpoint := "/api/v2/mix/market/ticker"
-        queryParams := map[string]string{
+        params := map[string]string{
                 "symbol":      symbol,
                 "productType": "USDT-FUTURES",
         }
-
-        var tickerData map[string]interface{}
-        err := b.makeRequestWithRetry("GET", endpoint, queryParams, nil, &tickerData)
-        if err != nil {
-                return 0, err
+        
+        fmt.Printf("🔍 Getting price for symbol: %s\n", symbol)
+        
+        // Build query string
+        values := url.Values{}
+        for k, v := range params {
+                values.Add(k, v)
         }
-
+        queryString := values.Encode()
+        
+        // Build full URL
+        fullURL := b.BaseURL + endpoint + "?" + queryString
+        
+        // Create HTTP request
+        req, err := http.NewRequest("GET", fullURL, nil)
+        if err != nil {
+                return 0, fmt.Errorf("failed to create request: %w", err)
+        }
+        
+        // Set headers
+        timestamp := strconv.FormatInt(time.Now().UnixMilli(), 10)
+        signaturePath := endpoint + "?" + queryString
+        
+        req.Header.Set("ACCESS-KEY", b.APIKey)
+        req.Header.Set("ACCESS-SIGN", b.sign(timestamp, "GET", signaturePath, []byte{}))
+        req.Header.Set("ACCESS-PASSPHRASE", b.Passphrase)
+        req.Header.Set("ACCESS-TIMESTAMP", timestamp)
+        req.Header.Set("locale", "en-US")
+        req.Header.Set("Content-Type", "application/json")
+        
+        // Make request
+        resp, err := b.Client.Do(req)
+        if err != nil {
+                return 0, fmt.Errorf("failed to make request: %w", err)
+        }
+        defer resp.Body.Close()
+        
+        // Read response
+        respBody, err := io.ReadAll(resp.Body)
+        if err != nil {
+                return 0, fmt.Errorf("failed to read response: %w", err)
+        }
+        
+        fmt.Printf("🔍 HTTP Status: %d\n", resp.StatusCode)
+        fmt.Printf("🔍 API Response received\n")
+        
+        // Parse response directly without APIResponse wrapper
+        var directResponse map[string]interface{}
+        if err := json.Unmarshal(respBody, &directResponse); err != nil {
+                return 0, fmt.Errorf("failed to parse response: %w", err)
+        }
+        
+        // Check response code
+        code, ok := directResponse["code"].(string)
+        if !ok || code != "00000" {
+                msg, _ := directResponse["msg"].(string)
+                return 0, fmt.Errorf("API error: %s - %s", code, msg)
+        }
+        
+        // Parse data array (Bitget returns array, not map!)
+        data, ok := directResponse["data"].([]interface{})
+        if !ok || len(data) == 0 {
+                return 0, fmt.Errorf("invalid response format or no data")
+        }
+        
+        // Get first ticker item
+        tickerData, ok := data[0].(map[string]interface{})
+        if !ok {
+                return 0, fmt.Errorf("invalid ticker data format")
+        }
+        
+        // Get price
         priceStr, ok := tickerData["lastPr"].(string)
         if !ok {
-                return 0, fmt.Errorf("invalid price format")
+                return 0, fmt.Errorf("lastPr field not found")
         }
-
+        
         price, err := strconv.ParseFloat(priceStr, 64)
         if err != nil {
                 return 0, fmt.Errorf("failed to parse price: %w", err)
         }
-
+        
+        fmt.Printf("📊 Current price for %s: $%.2f\n", symbol, price)
         return price, nil
 }
 
