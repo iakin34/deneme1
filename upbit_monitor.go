@@ -52,19 +52,24 @@ type UpbitMonitor struct {
 }
 
 func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
-        proxies := []string{
-                os.Getenv("UPBIT_PROXY_1"),
-                os.Getenv("UPBIT_PROXY_2"),
-                os.Getenv("UPBIT_PROXY_3"),
+        var proxies []string
+        
+        for i := 1; i <= 12; i++ {
+                proxyEnv := os.Getenv(fmt.Sprintf("UPBIT_PROXY_%d", i))
+                if proxyEnv != "" {
+                        proxies = append(proxies, proxyEnv)
+                }
         }
 
-        if proxies[0] == "" {
+        if len(proxies) == 0 {
                 proxies = []string{
                         "socks5://doproxy1:DigitalOcean55@143.198.221.194:1080",
                         "socks5://doproxy2:DigitalOcean55@159.223.68.49:1080",
                         "socks5://doproxy3:DigitalOcean55@104.248.147.230:1080",
                 }
-                log.Printf("⚠️ UPBIT_PROXY environment variables not set, using default proxies")
+                log.Printf("⚠️ UPBIT_PROXY environment variables not set, using %d default proxies", len(proxies))
+        } else {
+                log.Printf("✅ Loaded %d proxies from environment variables", len(proxies))
         }
 
         return &UpbitMonitor{
