@@ -1,0 +1,29 @@
+# Binaries
+bot
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output
+*.out
+
+# Go workspace file
+go.work
+
+# Environment variables
+.env
+
+# Database files
+bot_users.json
+active_positions.json
+upbit_new.json
+
+# Session files
+sessions/
+
+# Log files
+*.log
