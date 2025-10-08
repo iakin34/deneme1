@@ -1,4 +1,4 @@
-modules = ["go-1.23"]
+modules = ["go-1.23", "golang"]
 [agent]
 expertMode = true
 

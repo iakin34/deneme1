@@ -1,37 +1,41 @@
 package main
 
 import (
-	"log"
-	"os"
+        "log"
+        "os"
+
+        "github.com/joho/godotenv"
 )
 
 func main() {
-	log.Println("🚀 Upbit-Bitget Auto Trading System Starting...")
+        log.Println("🚀 Upbit-Bitget Auto Trading System Starting...")
 
-	token := os.Getenv("TELEGRAM_BOT_TOKEN")
-	if token == "" {
-		log.Fatal("TELEGRAM_BOT_TOKEN environment variable is required")
-	}
+        _ = godotenv.Load()
 
-	encKey := os.Getenv("BOT_ENCRYPTION_KEY")
-	if encKey == "" {
-		log.Fatal("BOT_ENCRYPTION_KEY environment variable is required")
-	}
+        token := os.Getenv("TELEGRAM_BOT_TOKEN")
+        if token == "" {
+                log.Fatal("TELEGRAM_BOT_TOKEN environment variable is required")
+        }
 
-	bot, err := NewTelegramBot(token)
-	if err != nil {
-		log.Fatalf("Failed to create Telegram bot: %v", err)
-	}
+        encKey := os.Getenv("BOT_ENCRYPTION_KEY")
+        if encKey == "" {
+                log.Fatal("BOT_ENCRYPTION_KEY environment variable is required")
+        }
 
-	upbitMonitor := NewUpbitMonitor(func(symbol string) {
-		log.Printf("🔥 New Upbit listing callback: %s", symbol)
-	})
+        bot, err := NewTelegramBot(token)
+        if err != nil {
+                log.Fatalf("Failed to create Telegram bot: %v", err)
+        }
 
-	log.Println("✅ All systems initialized")
-	log.Println("📡 Starting Upbit monitor...")
-	log.Println("🤖 Starting Telegram bot...")
+        upbitMonitor := NewUpbitMonitor(func(symbol string) {
+                log.Printf("🔥 New Upbit listing callback: %s", symbol)
+        })
 
-	go upbitMonitor.Start()
+        log.Println("✅ All systems initialized")
+        log.Println("📡 Starting Upbit monitor...")
+        log.Println("🤖 Starting Telegram bot...")
 
-	bot.Start()
+        go upbitMonitor.Start()
+
+        bot.Start()
 }
