@@ -39,6 +39,11 @@ type ListingsData struct {
         Listings []ListingEntry `json:"listings"`
 }
 
+// Type aliases for compatibility with telegram_bot.go
+type CoinDetection = ListingEntry
+type UpbitDetection = ListingEntry
+type UpbitData = ListingsData
+
 type UpbitMonitor struct {
         apiURL          string
         proxies         []string

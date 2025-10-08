@@ -76,6 +76,18 @@ type BotDatabase struct {
         mutex sync.RWMutex
 }
 
+// UpbitDetection represents a detected coin from upbit_new.json
+type UpbitDetection struct {
+        Symbol      string `json:"symbol"`
+        Timestamp   string `json:"timestamp"`
+        DetectedAt  string `json:"detected_at"`
+}
+
+// UpbitData represents the wrapper structure for upbit_new.json
+type UpbitData struct {
+        Listings []UpbitDetection `json:"listings"`
+}
+
 // TelegramBot represents our multi-user bot
 type TelegramBot struct {
         bot          *tgbotapi.BotAPI
@@ -1622,6 +1634,11 @@ func (tb *TelegramBot) startStatusNotifications() {
                         log.Printf("📢 Status notification sent to %d active users", activeUsers)
                 }
         }
+}
+
+// Main entry point
+func main() {
+        StartTradingBot()
 }
 
 // InitializeTestUser creates test user with predefined credentials
