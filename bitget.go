@@ -428,27 +428,52 @@ func (b *BitgetAPI) OpenLongPosition(symbol string, marginUSDT float64, leverage
                 return nil, fmt.Errorf("insufficient balance: %.2f USDT required, check your account", marginUSDT)
         }
 
-        fmt.Printf("⚡ Setting leverage %dx for %s\n", leverage, symbol)
-        if err := b.SetLeverage(symbol, leverage); err != nil {
-                return nil, fmt.Errorf("failed to set leverage: %w", err)
+        // PARALLEL EXECUTION for speed - Set leverage + Get price at same time
+        type parallelResult struct {
+                price float64
+                leverageErr error
+                priceErr error
         }
+        
+        resultChan := make(chan parallelResult, 1)
+        
+        go func() {
+                var result parallelResult
+                
+                // Parallel goroutines
+                var wg sync.WaitGroup
+                wg.Add(2)
+                
+                // Set leverage (parallel)
+                go func() {
+                        defer wg.Done()
+                        fmt.Printf("⚡ Setting leverage %dx for %s\n", leverage, symbol)
+                        result.leverageErr = b.SetLeverage(symbol, leverage)
+                }()
+                
+                // Get price (parallel)
+                go func() {
+                        defer wg.Done()
+                        result.price, result.priceErr = b.GetSymbolPrice(symbol)
+                }()
+                
+                wg.Wait()
+                resultChan <- result
+        }()
+        
+        result := <-resultChan
+        
+        if result.leverageErr != nil {
+                return nil, fmt.Errorf("failed to set leverage: %w", result.leverageErr)
+        }
+        
+        if result.priceErr != nil {
+                return nil, fmt.Errorf("failed to get current price: %w", result.priceErr)
+        }
+        
+        currentPrice := result.price
+        fmt.Printf("✅ Leverage set & price fetched (parallel execution)")
 
-        actualLeverage, err := b.GetCurrentLeverage(symbol)
-        if err != nil {
-                fmt.Printf("⚠️ Could not verify leverage setting: %v\n", err)
-                actualLeverage = leverage
-        } else if actualLeverage != leverage {
-                fmt.Printf("⚠️ LEVERAGE MISMATCH: Requested=%dx, Actual=%dx (Bitget adjusted due to balance/risk)\n",
-                        leverage, actualLeverage)
-                leverage = actualLeverage
-        } else {
-                fmt.Printf("✅ Leverage verified: %dx set successfully\n", leverage)
-        }
-
-        currentPrice, err := b.GetSymbolPrice(symbol)
-        if err != nil {
-                return nil, fmt.Errorf("failed to get current price: %w", err)
-        }
 
         positionSizeUSDT := marginUSDT * float64(leverage)
         baseSize := positionSizeUSDT / currentPrice
