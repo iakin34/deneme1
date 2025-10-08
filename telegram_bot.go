@@ -25,13 +25,14 @@ import (
 type UserState string
 
 const (
-        StateNone        UserState = "none"
-        StateAwaitingKey UserState = "awaiting_api_key"
-        StateAwaitingSecret UserState = "awaiting_secret"
-        StateAwaitingPasskey UserState = "awaiting_passkey"  
-        StateAwaitingMargin UserState = "awaiting_margin"
+        StateNone             UserState = "none"
+        StateConfirmAPIChange UserState = "confirm_api_change"
+        StateAwaitingKey      UserState = "awaiting_api_key"
+        StateAwaitingSecret   UserState = "awaiting_secret"
+        StateAwaitingPasskey  UserState = "awaiting_passkey"  
+        StateAwaitingMargin   UserState = "awaiting_margin"
         StateAwaitingLeverage UserState = "awaiting_leverage"
-        StateComplete     UserState = "complete"
+        StateComplete         UserState = "complete"
 )
 
 // UserData represents individual user settings and API credentials
@@ -618,7 +619,37 @@ Bu bot, Upbit'te listelenen yeni coinleri otomatik olarak Bitget'te long positio
 
 // Handle /setup command (start setup process)
 func (tb *TelegramBot) handleSetup(chatID int64, userID int64, username string) {
-        setupMsg := `🔧 **Bitget API Setup**
+        user, exists := tb.getUser(userID)
+        
+        // Eğer kullanıcı varsa ve API bilgileri kayıtlıysa
+        if exists && user.BitgetAPIKey != "" {
+                // Kayıtlı API bilgileri var, kullanıcıya sor
+                confirmMsg := `🔧 **Setup Menüsü**
+
+Kayıtlı API bilgileriniz bulundu.
+
+**Ne yapmak istersiniz?**`
+
+                keyboard := tgbotapi.NewInlineKeyboardMarkup(
+                        tgbotapi.NewInlineKeyboardRow(
+                                tgbotapi.NewInlineKeyboardButtonData("✏️ Sadece Margin/Leverage Değiştir", "setup_quick"),
+                                tgbotapi.NewInlineKeyboardButtonData("🔄 API Bilgilerini Değiştir", "setup_full"),
+                        ),
+                        tgbotapi.NewInlineKeyboardRow(
+                                tgbotapi.NewInlineKeyboardButtonData("« Geri", "main_menu"),
+                        ),
+                )
+
+                msg := tgbotapi.NewMessage(chatID, confirmMsg)
+                msg.ParseMode = "Markdown"
+                msg.ReplyMarkup = keyboard
+                tb.bot.Send(msg)
+                
+                user.State = StateConfirmAPIChange
+                tb.saveUser(user)
+        } else {
+                // İlk setup veya API bilgileri yok, normal akış
+                setupMsg := `🔧 **Bitget API Setup**
 
 API bilgilerinizi adım adım girelim:
 
@@ -630,24 +661,23 @@ https://www.bitget.com/api-doc
 ⚠️ **Güvenlik:** Sensitive data güvenli şekilde saklanır.
 ⚠️ **İptal:** Setup'ı iptal etmek için /start yazın.`
 
-        msg := tgbotapi.NewMessage(chatID, setupMsg)
-        msg.ParseMode = "Markdown"
-        tb.bot.Send(msg)
+                msg := tgbotapi.NewMessage(chatID, setupMsg)
+                msg.ParseMode = "Markdown"
+                tb.bot.Send(msg)
 
-        // Set user state for expecting API key
-        user, exists := tb.getUser(userID)
-        if !exists {
-                user = &UserData{
-                        UserID:   userID,
-                        Username: username,
-                        IsActive: false,
-                        State:    StateAwaitingKey,
+                if !exists {
+                        user = &UserData{
+                                UserID:   userID,
+                                Username: username,
+                                IsActive: false,
+                                State:    StateAwaitingKey,
+                        }
+                } else {
+                        user.State = StateAwaitingKey
                 }
-        } else {
-                user.State = StateAwaitingKey
+                
+                tb.saveUser(user)
         }
-        
-        tb.saveUser(user)
 }
 
 // Handle /settings command
@@ -1006,6 +1036,39 @@ func (tb *TelegramBot) handleCallbackQuery(callback *tgbotapi.CallbackQuery) {
                 tb.handleSettings(chatID, userID)
         case "setup":
                 tb.handleSetup(chatID, userID, callback.From.UserName)
+        case "setup_quick":
+                // Sadece margin/leverage değiştir
+                user, exists := tb.getUser(userID)
+                if exists {
+                        user.State = StateAwaitingMargin
+                        tb.saveUser(user)
+                        
+                        msg := tgbotapi.NewMessage(chatID, `✏️ **Hızlı Güncelleme**
+
+4️⃣ **Margin tutarını USDT olarak gönderin**
+Örnek: 100 (100 USDT için)
+
+⚠️ Mevcut API bilgileriniz korunacak.`)
+                        msg.ParseMode = "Markdown"
+                        tb.bot.Send(msg)
+                }
+        case "setup_full":
+                // API bilgilerini baştan al
+                user, exists := tb.getUser(userID)
+                if exists {
+                        user.State = StateAwaitingKey
+                        tb.saveUser(user)
+                        
+                        msg := tgbotapi.NewMessage(chatID, `🔄 **API Bilgilerini Yeniden Gir**
+
+1️⃣ **Bitget API Key'inizi gönderin**
+
+API bilgilerinizi Bitget > API Management bölümünden alabilirsiniz.
+
+⚠️ **İptal:** Setup'ı iptal etmek için /start yazın.`)
+                        msg.ParseMode = "Markdown"
+                        tb.bot.Send(msg)
+                }
         case "close_all":
                 tb.handleClose(chatID, userID)
         case "positions":
