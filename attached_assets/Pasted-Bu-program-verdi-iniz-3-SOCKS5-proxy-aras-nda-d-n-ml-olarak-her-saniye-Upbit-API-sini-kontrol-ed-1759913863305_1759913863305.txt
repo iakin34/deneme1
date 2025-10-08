@@ -1,0 +1,209 @@
+Bu program, verdiğiniz 3 SOCKS5 proxy arasında dönüşümlü olarak her saniye Upbit API'sini kontrol edecek, ETag ile değişiklikleri takip edecek ve yeni bir kripto para listelemesi duyurusu bulduğunda bunu tespit edecektir.
+
+Programın Özellikleri
+Proxy Rotasyonu: Verdiğiniz 3 SOCKS5 proxy'sini her istekte sırayla kullanır. Bu sayede her bir proxy 3 saniyede bir kullanılmış olur ve saatlik istek limiti (proxy başına 1200) aşılmaz. (1 istek/3sn * 3600sn/saat = 1200 istek/saat)
+
+ETag Kontrolü: Upbit sunucusuna gereksiz yük bindirmemek ve veriyi verimli bir şekilde kontrol etmek için If-None-Match başlığını (ETag) kullanır.
+
+Dinamik Listeleme Tespiti: Sadece yeni eklenen duyurulardaki coin ticker'larını tespit eder ve ekrana yazdırır.
+
+Hata Yönetimi: Proxy bağlantı hataları veya API'den gelebilecek hatalara karşı temel düzeyde koruma içerir.
+
+Go (Golang) Kodu
+Aşağıdaki kodu main.go adında bir dosyaya kaydedin.
+
+Go
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"regexp"
+	"sync"
+	"time"
+
+	"golang.org/x/net/proxy"
+)
+
+// Upbit API'sinden gelen JSON yanıtını modellemek için struct'lar
+type APIResponse struct {
+	Success bool `json:"success"`
+	Data    Data `json:"data"`
+}
+
+type Data struct {
+	List []Announcement `json:"list"`
+}
+
+type Announcement struct {
+	ID    int    `json:"id"`
+	Title string `json:"title"`
+}
+
+// Global değişkenler
+var (
+	// Sorgulanacak API URL'si
+	apiURL = "https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=20&category=all"
+
+	// Proxy listesi
+	proxies = []string{
+		"socks5://doproxy1:DigitalOcean55@143.198.221.194:1080",
+		"socks5://doproxy2:DigitalOcean55@159.223.68.49:1080",
+		"socks5://doproxy3:DigitalOcean55@104.248.147.230:1080",
+	}
+
+	// Ticker'ları ayıklamak için regular expression
+	// Parantez içindeki büyük harfli metni yakalar: (XYZ)
+	tickerRegex = regexp.MustCompile(`\(([A-Z0-9]+)\)`)
+
+	// Önbellek ve durum yönetimi için
+	cachedTickers = make(map[string]bool) // Set gibi kullanmak için map
+	cachedETag    = ""
+	proxyIndex    = 0
+	mu            sync.Mutex // Eşzamanlı erişimi önlemek için Mutex
+)
+
+// Belirtilen SOCKS5 proxy'si ile bir http.Client oluşturan fonksiyon
+func createProxyClient(proxyURL string) (*http.Client, error) {
+	parsedURL, err := url.Parse(proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("proxy URL'si ayrıştırılamadı: %w", err)
+	}
+
+	dialer, err := proxy.FromURL(parsedURL, proxy.Direct)
+	if err != nil {
+		return nil, fmt.Errorf("proxy dialer oluşturulamadı: %w", err)
+	}
+
+	transport := &http.Transport{
+		Dial: dialer.Dial,
+	}
+
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second, // 10 saniye zaman aşımı
+	}
+
+	return client, nil
+}
+
+// Duyuruları işleyen ve yeni ticker'ları bulan fonksiyon
+func processAnnouncements(body io.Reader) {
+	var response APIResponse
+	if err := json.NewDecoder(body).Decode(&response); err != nil {
+		log.Printf("JSON verisi işlenemedi: %v", err)
+		return
+	}
+
+	newTickers := make(map[string]bool)
+	var newTickersList []string // Sadece loglama için
+
+	for _, announcement := range response.Data.List {
+		// Başlıkta "신규" veya "Market Support" kelimeleri geçiyorsa
+		if contains(announcement.Title, "신규") || contains(announcement.Title, "Market Support") {
+			matches := tickerRegex.FindStringSubmatch(announcement.Title)
+			if len(matches) > 1 {
+				ticker := matches[1]
+				newTickers[ticker] = true
+				newTickersList = append(newTickersList, ticker)
+			}
+		}
+	}
+	
+	mu.Lock()
+	defer mu.Unlock()
+
+	var newlyAdded []string
+	for ticker := range newTickers {
+		if !cachedTickers[ticker] {
+			newlyAdded = append(newlyAdded, ticker)
+		}
+	}
+
+	if len(newlyAdded) > 0 {
+		fmt.Printf("\n🔥🔥🔥 YENİ LİSTELEME TESPİT EDİLDİ: %v 🔥🔥🔥\n", newlyAdded)
+	}
+
+	// Cache'i güncelle
+	cachedTickers = newTickers
+	log.Printf("Mevcut ticker listesi güncellendi: %v", newTickersList)
+}
+
+// string içinde alt string var mı kontrolü
+func contains(s, substr string) bool {
+    return regexp.MustCompile(substr).MatchString(s)
+}
+
+
+func main() {
+	log.Println("Upbit Yeni Listeleme Takipçisi Başlatıldı...")
+	log.Printf("Kullanılacak Proxy Sayısı: %d", len(proxies))
+
+	// Periyodik kontrol için ticker
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		mu.Lock()
+		// Sıradaki proxy'yi seç
+		currentProxy := proxies[proxyIndex]
+		proxyIndex = (proxyIndex + 1) % len(proxies)
+		mu.Unlock()
+
+		log.Printf("Kontrol ediliyor... Proxy: %s", currentProxy)
+
+		// Seçilen proxy ile client oluştur
+		client, err := createProxyClient(currentProxy)
+		if err != nil {
+			log.Printf("HATA: Client oluşturulamadı: %v", err)
+			continue
+		}
+
+		// API'ye istek oluştur
+		req, err := http.NewRequest("GET", apiURL, nil)
+		if err != nil {
+			log.Printf("HATA: İstek oluşturulamadı: %v", err)
+			continue
+		}
+
+		// Eğer bir ETag'imiz varsa, If-None-Match başlığını ekle
+		mu.Lock()
+		if cachedETag != "" {
+			req.Header.Set("If-None-Match", cachedETag)
+		}
+		mu.Unlock()
+
+		// İsteği gönder
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("HATA: API'ye istek gönderilemedi: %v", err)
+			continue
+		}
+		defer resp.Body.Close()
+
+		// HTTP durum kodunu kontrol et
+		switch resp.StatusCode {
+		case http.StatusOK: // 200 OK - Veri değişmiş
+			log.Println("Değişiklik tespit edildi! Veri işleniyor...")
+			
+			// Yeni ETag'i al ve cache'i güncelle
+			newETag := resp.Header.Get("ETag")
+			mu.Lock()
+			cachedETag = newETag
+			mu.Unlock()
+			
+			processAnnouncements(resp.Body)
+
+		case http.StatusNotModified: // 304 Not Modified - Veri aynı
+			log.Println("Veride değişiklik yok (304 Not Modified).")
+
+		default: // Diğer durum kodları
+			log.Printf("Beklenmedik HTTP durum kodu: %d", resp.StatusCode)
+		}
+	}
+}
