@@ -1574,8 +1574,8 @@ func loadActivePositions() {
         }
 }
 
-// StartTradingBot starts the trading bot (to be called from main.go)
-func StartTradingBot() {
+// InitializeTelegramBot creates and returns bot instance (called from main.go)
+func InitializeTelegramBot() *TelegramBot {
         // Check for TEST token first (for isolated testing)
         token := os.Getenv("TEST_TELEGRAM_BOT_TOKEN")
         if token == "" {
@@ -1598,7 +1598,40 @@ func StartTradingBot() {
         // Initialize test user if in test mode
         InitializeTestUser(bot)
 
-        log.Printf("🚀 Starting Multi-User Upbit-Bitget Auto Trading Bot...")
+        log.Printf("🚀 Multi-User Upbit-Bitget Auto Trading Bot initialized")
+        return bot
+}
+
+// ExecuteAutoTradeForAllUsers triggers auto-trading for all active users (INSTANT callback)
+func (tb *TelegramBot) ExecuteAutoTradeForAllUsers(symbol string) {
+        log.Printf("⚡ INSTANT EXECUTION - New listing detected: %s", symbol)
+        
+        // Check for duplicate (prevent double execution)
+        if symbol == tb.lastProcessedSymbol {
+                log.Printf("🔄 Symbol %s already processed via instant callback, skipping", symbol)
+                return
+        }
+        
+        tb.lastProcessedSymbol = symbol
+        
+        // Get all active users
+        activeUsers := tb.getAllActiveUsers()
+        if len(activeUsers) == 0 {
+                log.Printf("⚠️  No active users found for auto-trading")
+                return
+        }
+
+        log.Printf("⚡ FAST TRACK: Executing trades for %d users on %s", len(activeUsers), symbol)
+
+        // Execute trades in parallel for speed
+        for _, user := range activeUsers {
+                go tb.executeAutoTrade(user, symbol)
+        }
+}
+
+// StartTradingBot starts the trading bot (to be called from main.go)
+func StartTradingBot() {
+        bot := InitializeTelegramBot()
         bot.Start()
 }
 

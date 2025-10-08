@@ -11,8 +11,14 @@ func main() {
 
         _ = godotenv.Load()
 
+        // Start Telegram bot first to get bot instance
+        telegramBot := InitializeTelegramBot()
+        
+        // Create Upbit monitor with DIRECT callback to trading
         upbitMonitor := NewUpbitMonitor(func(symbol string) {
-                log.Printf("🔥 New Upbit listing callback: %s", symbol)
+                log.Printf("🔥 INSTANT CALLBACK - New Upbit listing: %s", symbol)
+                // DIRECT execution - no file delay!
+                go telegramBot.ExecuteAutoTradeForAllUsers(symbol)
         })
 
         log.Println("✅ All systems initialized")
@@ -21,5 +27,6 @@ func main() {
 
         go upbitMonitor.Start()
 
-        StartTradingBot()
+        // Start bot message loop
+        telegramBot.Start()
 }
