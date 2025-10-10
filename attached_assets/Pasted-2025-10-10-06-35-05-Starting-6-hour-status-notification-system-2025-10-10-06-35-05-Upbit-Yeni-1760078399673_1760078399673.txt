@@ -1,0 +1,49 @@
+2025/10/10 06:35:05 📢 Starting 6-hour status notification system...
+2025/10/10 06:35:05 Upbit Yeni Listeleme Takipçisi Başlatıldı...
+2025/10/10 06:35:05 Kullanılacak Proxy Sayısı: 12
+2025/10/10 06:35:05 ⏰ Starting position reminder system...
+2025/10/10 06:35:05 🔍 Initial active positions count: 0
+2025/10/10 06:35:06 Kontrol ediliyor... Proxy: socks5://doproxy1:DigitalOcean55@143.198.221.194:1080
+2025/10/10 06:35:06 Değişiklik tespit edildi! Veri işleniyor...
+2025/10/10 06:35:06 Mevcut ticker listesi güncellendi: []
+2025/10/10 06:35:07 Kontrol ediliyor... Proxy: socks5://doproxy2:DigitalOcean55@159.223.68.49:1080
+2025/10/10 06:35:07 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:08 Kontrol ediliyor... Proxy: socks5://do2proxy1:DigitalOcean55@206.189.46.37:1080
+2025/10/10 06:35:08 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:09 Kontrol ediliyor... Proxy: socks5://do2proxy2:DigitalOcean55@157.245.201.102:1080
+2025/10/10 06:35:09 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:10 Kontrol ediliyor... Proxy: socks5://do2proxy3:DigitalOcean55@68.183.180.96:1080
+2025/10/10 06:35:10 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:11 Kontrol ediliyor... Proxy: socks5://do2proxy4:DigitalOcean55@188.166.183.106:1080
+2025/10/10 06:35:11 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:12 Kontrol ediliyor... Proxy: socks5://do2proxy5:DigitalOcean55@188.166.210.172:1080
+2025/10/10 06:35:12 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:13 Kontrol ediliyor... Proxy: socks5://do2proxy6:DigitalOcean55@167.99.71.61:1080
+2025/10/10 06:35:13 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:14 Kontrol ediliyor... Proxy: socks5://do2proxy7:DigitalOcean55@159.223.45.224:1080
+2025/10/10 06:35:14 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:15 Kontrol ediliyor... Proxy: socks5://do2proxy8:DigitalOcean55@152.42.240.96:1080
+2025/10/10 06:35:15 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:16 Kontrol ediliyor... Proxy: socks5://do2proxy9:DigitalOcean55@146.190.80.213:1080
+2025/10/10 06:35:16 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:17 Kontrol ediliyor... Proxy: socks5://doproxy3:DigitalOcean55@104.248.147.230:1080
+2025/10/10 06:35:17 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:18 Kontrol ediliyor... Proxy: socks5://doproxy1:DigitalOcean55@143.198.221.194:1080
+2025/10/10 06:35:18 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:19 Kontrol ediliyor... Proxy: socks5://doproxy2:DigitalOcean55@159.223.68.49:1080
+2025/10/10 06:35:19 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:20 Kontrol ediliyor... Proxy: socks5://do2proxy1:DigitalOcean55@206.189.46.37:1080
+2025/10/10 06:35:20 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:21 Kontrol ediliyor... Proxy: socks5://do2proxy2:DigitalOcean55@157.245.201.102:1080
+2025/10/10 06:35:21 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:22 Kontrol ediliyor... Proxy: socks5://do2proxy3:DigitalOcean55@68.183.180.96:1080
+2025/10/10 06:35:22 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:23 Kontrol ediliyor... Proxy: socks5://do2proxy4:DigitalOcean55@188.166.183.106:1080
+2025/10/10 06:35:23 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:24 Kontrol ediliyor... Proxy: socks5://do2proxy5:DigitalOcean55@188.166.210.172:1080
+2025/10/10 06:35:24 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:25 Kontrol ediliyor... Proxy: socks5://do2proxy6:DigitalOcean55@167.99.71.61:1080
+2025/10/10 06:35:25 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:26 Kontrol ediliyor... Proxy: socks5://do2proxy7:DigitalOcean55@159.223.45.224:1080
+2025/10/10 06:35:26 Veride değişiklik yok (304 Not Modified).
+2025/10/10 06:35:27 Kontrol ediliyor... Proxy: socks5://do2proxy8:DigitalOcean55@152.42.240.96:1080

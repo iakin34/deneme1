@@ -21,7 +21,7 @@ type UpbitAPIResponse struct {
 }
 
 type UpbitData2 struct {
-        List []Announcement `json:"list"`
+        Notices []Announcement `json:"notices"`
 }
 
 type Announcement struct {
@@ -182,8 +182,14 @@ func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
         newTickers := make(map[string]bool)
         var newTickersList []string
 
-        for _, announcement := range response.Data.List {
-                if contains(announcement.Title, "신규") || contains(announcement.Title, "Market Support") {
+        for _, announcement := range response.Data.Notices {
+                // Check for new listing keywords (multiple formats)
+                isNewListing := contains(announcement.Title, "신규") || 
+                                contains(announcement.Title, "Market Support") ||
+                                contains(announcement.Title, "디지털 자산 추가") ||
+                                contains(announcement.Title, "KRW 마켓")
+                
+                if isNewListing {
                         matches := um.tickerRegex.FindStringSubmatch(announcement.Title)
                         if len(matches) > 1 {
                                 ticker := matches[1]
