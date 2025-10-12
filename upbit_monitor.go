@@ -59,7 +59,7 @@ type UpbitMonitor struct {
 func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
         var proxies []string
         
-        for i := 1; i <= 12; i++ {
+        for i := 1; i <= 11; i++ {
                 proxyEnv := os.Getenv(fmt.Sprintf("UPBIT_PROXY_%d", i))
                 if proxyEnv != "" {
                         proxies = append(proxies, proxyEnv)
