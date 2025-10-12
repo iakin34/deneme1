@@ -172,6 +172,127 @@ func (um *UpbitMonitor) saveToJSON(symbol string) error {
         return nil
 }
 
+// normalizeText: Unicode normalization and whitespace cleanup
+func normalizeText(text string) string {
+        // Remove punctuation and emojis, normalize whitespace
+        reg := regexp.MustCompile(`[\p{P}\p{S}\p{Z}]+`)
+        normalized := reg.ReplaceAllString(text, " ")
+        normalized = regexp.MustCompile(`\s+`).ReplaceAllString(normalized, " ")
+        return regexp.MustCompile(`\s+`).ReplaceAllString(normalized, "")
+}
+
+// containsAll: Check if text contains all words (order independent)
+func containsAll(text string, words []string) bool {
+        normalized := normalizeText(text)
+        for _, word := range words {
+                if !regexp.MustCompile(normalizeText(word)).MatchString(normalized) {
+                        return false
+                }
+        }
+        return true
+}
+
+// containsAny: Check if text contains any word
+func containsAny(text string, words []string) bool {
+        normalized := normalizeText(text)
+        for _, word := range words {
+                if regexp.MustCompile(normalizeText(word)).MatchString(normalized) {
+                        return true
+                }
+        }
+        return false
+}
+
+// isNegativeFiltered: Rule 2 - Negative filtering (highest priority)
+func isNegativeFiltered(title string) bool {
+        negativeRules := [][]string{
+                {"거래지원", "종료"},           // trading support ended
+                {"상장폐지"},                   // delisting
+                {"유의", "종목", "지정"},       // caution designation
+                {"투자", "유의", "촉구"},       // investment caution warning
+                {"유의", "촉구"},               // caution warning
+                {"유의", "종목", "지정", "해제"}, // caution designation removal
+        }
+        
+        for _, rule := range negativeRules {
+                if containsAll(title, rule) {
+                        log.Printf("🚫 Negative filter: '%s' (contains: %v)", title, rule)
+                        return true
+                }
+        }
+        return false
+}
+
+// isPositiveFiltered: Rule 3 - Positive filtering
+func isPositiveFiltered(title string) bool {
+        positiveRules := [][]string{
+                {"신규", "거래지원"},     // new trading support
+                {"디지털", "자산", "추가"}, // digital asset addition
+        }
+        
+        for _, rule := range positiveRules {
+                if containsAll(title, rule) {
+                        return true
+                }
+        }
+        return false
+}
+
+// isMaintenanceUpdate: Rule 4 - Maintenance/Update filter
+func isMaintenanceUpdate(title string) bool {
+        updateKeywords := []string{
+                "변경", "연기", "연장", "재개", 
+                "입출금", "이벤트", "출금 수수료",
+        }
+        
+        if containsAny(title, updateKeywords) {
+                log.Printf("🔧 Maintenance/Update filter: '%s'", title)
+                return true
+        }
+        return false
+}
+
+// extractTickers: Rule 5 - Extract tickers from title
+func extractTickers(title string) []string {
+        var tickers []string
+        tickerMap := make(map[string]bool)
+        
+        // Find all parentheses content
+        parenRegex := regexp.MustCompile(`\(([^)]+)\)`)
+        matches := parenRegex.FindAllStringSubmatch(title, -1)
+        
+        for _, match := range matches {
+                content := match[1]
+                
+                // Skip if contains "마켓" (market indicator)
+                if regexp.MustCompile(`마켓`).MatchString(content) {
+                        continue
+                }
+                
+                // Split by comma, trim, uppercase
+                parts := regexp.MustCompile(`[,\s]+`).Split(content, -1)
+                for _, part := range parts {
+                        part = regexp.MustCompile(`\s+`).ReplaceAllString(part, "")
+                        part = regexp.MustCompile(`[^A-Z0-9]`).ReplaceAllString(part, "")
+                        
+                        // Exclude market symbols
+                        if part == "KRW" || part == "BTC" || part == "USDT" {
+                                continue
+                        }
+                        
+                        // Validate pattern [A-Z0-9]{1,10}
+                        if regexp.MustCompile(`^[A-Z0-9]{1,10}$`).MatchString(part) {
+                                if !tickerMap[part] {
+                                        tickerMap[part] = true
+                                        tickers = append(tickers, part)
+                                }
+                        }
+                }
+        }
+        
+        return tickers
+}
+
 func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
         var response UpbitAPIResponse
         if err := json.NewDecoder(body).Decode(&response); err != nil {
@@ -183,16 +304,28 @@ func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
         var newTickersList []string
 
         for _, announcement := range response.Data.Notices {
-                // Check for new listing keywords (multiple formats)
-                isNewListing := contains(announcement.Title, "신규") || 
-                                contains(announcement.Title, "Market Support") ||
-                                contains(announcement.Title, "디지털 자산 추가") ||
-                                contains(announcement.Title, "KRW 마켓")
+                title := announcement.Title
                 
-                if isNewListing {
-                        matches := um.tickerRegex.FindStringSubmatch(announcement.Title)
-                        if len(matches) > 1 {
-                                ticker := matches[1]
+                // Rule 2: Negative filtering (highest priority - skips everything)
+                if isNegativeFiltered(title) {
+                        continue
+                }
+                
+                // Rule 3: Positive filtering (must pass)
+                if !isPositiveFiltered(title) {
+                        continue
+                }
+                
+                // Rule 4: Maintenance/Update filter
+                if isMaintenanceUpdate(title) {
+                        continue
+                }
+                
+                // Rule 5: Extract tickers
+                tickers := extractTickers(title)
+                if len(tickers) > 0 {
+                        log.Printf("✅ Valid listing detected: '%s' → Tickers: %v", title, tickers)
+                        for _, ticker := range tickers {
                                 newTickers[ticker] = true
                                 newTickersList = append(newTickersList, ticker)
                         }
@@ -224,10 +357,6 @@ func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
 
         um.cachedTickers = newTickers
         log.Printf("Mevcut ticker listesi güncellendi: %v", newTickersList)
-}
-
-func contains(s, substr string) bool {
-        return regexp.MustCompile(substr).MatchString(s)
 }
 
 func (um *UpbitMonitor) Start() {
