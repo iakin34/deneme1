@@ -78,9 +78,9 @@ func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
         }
 
         return &UpbitMonitor{
-                apiURL:        "https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=20&category=all",
+                apiURL:        "https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=20&category=overall",
                 proxies:       proxies,
-                tickerRegex:   regexp.MustCompile(`\(([A-Z0-9]+)\)`),
+                tickerRegex:   regexp.MustCompile(`\(([A-Z]{2,6})\)`), // Only 2-6 uppercase letters (valid tickers)
                 cachedTickers: make(map[string]bool),
                 proxyIndex:    0,
                 jsonFile:      "upbit_new.json",
