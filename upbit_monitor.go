@@ -144,6 +144,14 @@ func (um *UpbitMonitor) saveToJSON(symbol string) error {
                 json.Unmarshal(fileData, &data)
         }
 
+        // DUPLICATE CHECK: If symbol already exists in file, skip saving
+        for _, entry := range data.Listings {
+                if entry.Symbol == symbol {
+                        log.Printf("⚠️ DUPLICATE PREVENTED: %s already exists in %s, skipping save", symbol, um.jsonFile)
+                        return nil // Not an error, just skip
+                }
+        }
+
         now := time.Now()
         newEntry := ListingEntry{
                 Symbol:     symbol,
@@ -168,7 +176,7 @@ func (um *UpbitMonitor) saveToJSON(symbol string) error {
                 return fmt.Errorf("error renaming temp file: %v", err)
         }
 
-        log.Printf("Successfully saved %s to %s", symbol, um.jsonFile)
+        log.Printf("✅ Successfully saved NEW listing %s to %s", symbol, um.jsonFile)
         return nil
 }
 
@@ -355,8 +363,12 @@ func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
                 }
         }
 
-        um.cachedTickers = newTickers
-        log.Printf("Mevcut ticker listesi güncellendi: %v", newTickersList)
+        // MERGE newTickers into cachedTickers (don't replace!)
+        for ticker := range newTickers {
+                um.cachedTickers[ticker] = true
+        }
+        
+        log.Printf("📊 Cached tickers count: %d, Current API response: %v", len(um.cachedTickers), newTickersList)
 }
 
 func (um *UpbitMonitor) Start() {
