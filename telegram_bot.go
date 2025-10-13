@@ -1444,13 +1444,32 @@ func (tb *TelegramBot) sendPositionReminder(position *PositionInfo) {
                                 currentPrice = priceFloat
                         }
                 } else {
-                        log.Printf("⚠️ No matching position found for %s in API response - using fallback calculation", position.Symbol)
-                        // Fallback to manual calculation but WITHOUT leverage multiplication
-                        currentPrice, _ = api.GetSymbolPrice(position.Symbol)
-                        priceChange := currentPrice - position.OpenPrice
-                        realPnL = priceChange * position.Size  // No leverage multiplication!
-                        log.Printf("📊 Fallback P&L calculation: (%.4f - %.4f) * %.4f = %.5f USDT", 
-                                currentPrice, position.OpenPrice, position.Size, realPnL)
+                        // POSITION NOT FOUND IN BITGET - User closed it manually on exchange
+                        log.Printf("🚨 Position %s not found in Bitget API - User closed it manually!", position.Symbol)
+                        
+                        // Remove from active positions
+                        positionKey := fmt.Sprintf("%d_%s", position.UserID, position.Symbol)
+                        positionsMutex.Lock()
+                        delete(activePositions, positionKey)
+                        positionsMutex.Unlock()
+                        
+                        // Save updated positions
+                        go saveActivePositions()
+                        
+                        // Notify user that position was closed and tracking stopped
+                        closedMsg := fmt.Sprintf(`✅ Pozisyon Kapandı
+
+📊 %s pozisyonunuz Bitget'te kapalı durumda.
+
+Bu pozisyon için hatırlatıcılar otomatik olarak durduruldu ve takip listesinden çıkarıldı.
+
+💡 Yeni coin listelemelerini beklemeye devam ediyoruz!`, position.Symbol)
+                        
+                        msg := tgbotapi.NewMessage(position.UserID, closedMsg)
+                        tb.bot.Send(msg)
+                        
+                        log.Printf("🗑️ Position %s removed from tracking (closed on exchange)", positionKey)
+                        return // Stop processing this reminder
                 }
         }
         
