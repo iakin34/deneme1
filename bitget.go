@@ -113,6 +113,22 @@ type AccountBalance struct {
         BonusAmount       string `json:"bonusAmount"`
 }
 
+type ServerTimeResponse struct {
+        Code        string `json:"code"`
+        Msg         string `json:"msg"`
+        RequestTime int64  `json:"requestTime"`
+        Data        struct {
+                ServerTime string `json:"serverTime"`
+        } `json:"data"`
+}
+
+type TimeSyncResult struct {
+        ServerTime    time.Time
+        LocalTime     time.Time
+        ClockOffset   time.Duration
+        NetworkLatency time.Duration
+}
+
 func NewBitgetAPI(apiKey, apiSecret, passphrase string) *BitgetAPI {
         api := &BitgetAPI{
                 APIKey:     apiKey,
@@ -595,4 +611,57 @@ func (b *BitgetAPI) CloseAllPositions() (*OrderResponse, error) {
         }
 
         return &OrderResponse{OrderID: "all_closed"}, nil
+}
+
+// GetServerTime retrieves Bitget server timestamp for time synchronization
+func (b *BitgetAPI) GetServerTime() (*TimeSyncResult, error) {
+        localTimeBefore := time.Now()
+        
+        url := b.BaseURL + "/api/v2/public/time"
+        req, err := http.NewRequest("GET", url, nil)
+        if err != nil {
+                return nil, fmt.Errorf("failed to create request: %w", err)
+        }
+
+        resp, err := b.Client.Do(req)
+        if err != nil {
+                return nil, fmt.Errorf("request failed: %w", err)
+        }
+        defer resp.Body.Close()
+
+        localTimeAfter := time.Now()
+        
+        var serverTimeResp ServerTimeResponse
+        if err := json.NewDecoder(resp.Body).Decode(&serverTimeResp); err != nil {
+                return nil, fmt.Errorf("failed to decode response: %w", err)
+        }
+
+        if serverTimeResp.Code != "00000" {
+                return nil, fmt.Errorf("server error: %s", serverTimeResp.Msg)
+        }
+
+        // Parse server time (milliseconds)
+        serverTimeMs, err := strconv.ParseInt(serverTimeResp.Data.ServerTime, 10, 64)
+        if err != nil {
+                return nil, fmt.Errorf("failed to parse server time: %w", err)
+        }
+        
+        serverTime := time.UnixMilli(serverTimeMs)
+        
+        // Calculate network latency (round-trip time / 2)
+        roundTripTime := localTimeAfter.Sub(localTimeBefore)
+        networkLatency := roundTripTime / 2
+        
+        // Adjust server time for network latency
+        adjustedServerTime := serverTime.Add(networkLatency)
+        
+        // Calculate clock offset
+        clockOffset := adjustedServerTime.Sub(localTimeAfter)
+
+        return &TimeSyncResult{
+                ServerTime:     adjustedServerTime,
+                LocalTime:      localTimeAfter,
+                ClockOffset:    clockOffset,
+                NetworkLatency: networkLatency,
+        }, nil
 }

@@ -545,3 +545,56 @@ func (um *UpbitMonitor) GetCurrentLogEntry(ticker string) *TradeExecutionLog {
         }
         return nil
 }
+
+// GetServerTime retrieves Upbit server time from HTTP response headers
+func (um *UpbitMonitor) GetServerTime() (*TimeSyncResult, error) {
+        localTimeBefore := time.Now()
+
+        // Use any lightweight public endpoint
+        client, err := um.createProxyClient(um.proxies[0])
+        if err != nil {
+                // Fallback to default client if proxy fails
+                client = &http.Client{Timeout: 10 * time.Second}
+        }
+
+        req, err := http.NewRequest("GET", um.apiURL, nil)
+        if err != nil {
+                return nil, fmt.Errorf("failed to create request: %w", err)
+        }
+
+        resp, err := client.Do(req)
+        if err != nil {
+                return nil, fmt.Errorf("request failed: %w", err)
+        }
+        defer resp.Body.Close()
+
+        localTimeAfter := time.Now()
+
+        // Parse Date header (RFC1123 format)
+        dateHeader := resp.Header.Get("Date")
+        if dateHeader == "" {
+                return nil, fmt.Errorf("no Date header in response")
+        }
+
+        serverTime, err := time.Parse(time.RFC1123, dateHeader)
+        if err != nil {
+                return nil, fmt.Errorf("failed to parse Date header: %w", err)
+        }
+
+        // Calculate network latency (round-trip time / 2)
+        roundTripTime := localTimeAfter.Sub(localTimeBefore)
+        networkLatency := roundTripTime / 2
+
+        // Adjust server time for network latency
+        adjustedServerTime := serverTime.Add(networkLatency)
+
+        // Calculate clock offset
+        clockOffset := adjustedServerTime.Sub(localTimeAfter)
+
+        return &TimeSyncResult{
+                ServerTime:     adjustedServerTime,
+                LocalTime:      localTimeAfter,
+                ClockOffset:    clockOffset,
+                NetworkLatency: networkLatency,
+        }, nil
+}
