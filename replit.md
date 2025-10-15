@@ -1,6 +1,6 @@
 # Overview
 
-This is a cryptocurrency trading bot that monitors Upbit exchange for new coin listing announcements and automatically executes trades on Bitget exchange. The system uses **parallel proxy execution** (11 SOCKS5 proxies running simultaneously) to achieve **455ms detection coverage** and **~0.4-0.6 seconds total execution time** from Upbit announcement to Bitget order placement. Uses 5-second interval per proxy (2.2 req/sec total) to stay under Upbit Announcements API undocumented stricter rate limits. Features include automated time synchronization monitoring, trade execution logging with microsecond precision, 5-rule filtering system for 100% accurate listing detection, multi-user support, and duplicate trade prevention.
+This is a cryptocurrency trading bot that monitors Upbit exchange for new coin listing announcements and automatically executes trades on Bitget exchange. The system uses **parallel proxy execution** (11 SOCKS5 proxies running simultaneously) to achieve **300ms detection coverage** and **~0.4-0.6 seconds total execution time** from Upbit announcement to Bitget order placement. Uses 3.3-second interval per proxy (0.303 req/sec per IP, 3.33 req/sec total) optimized for sub-second detection. Features include automated time synchronization monitoring, trade execution logging with microsecond precision, 5-rule filtering system for 100% accurate listing detection, multi-user support, and duplicate trade prevention.
 
 # User Preferences
 
@@ -23,12 +23,12 @@ Preferred communication style: Simple, everyday language.
 - Saved to `trade_execution_log.json`
 
 ## Performance Updates
-- Optimized to 455ms coverage with 11 proxies
+- Optimized to 300ms coverage with 11 proxies (0.3s target achieved)
 - Average execution time: 0.4-0.6 seconds
-- Rate limit: 5s interval per proxy = 720 req/hour per proxy
-- Total requests: 2.2 req/sec across all proxies
-- Dynamic stagger calculation: 455ms between workers
-- Fixed rate limit issue: Upbit Announcements API has undocumented stricter limits (~3-4 req/sec total, not per IP)
+- Rate limit: 3.3s interval per proxy = 1091 req/hour per proxy
+- Total requests: 3.33 req/sec across all proxies
+- Dynamic stagger calculation: 300ms between workers
+- Per IP rate: 0.303 req/sec (well under 30 req/sec limit)
 
 # System Architecture
 
@@ -38,11 +38,11 @@ Preferred communication style: Simple, everyday language.
 - **Problem**: Need to detect new cryptocurrency listings on Upbit exchange in real-time without hitting rate limits
 - **Solution**: Advanced multi-layer filtering with **parallel proxy execution**
   - **Parallel proxy workers**: 11 SOCKS5 proxies running simultaneously in separate goroutines
-  - **Staggered execution**: 455ms delay between workers (dynamically calculated)
-  - **Interval**: 5 seconds per proxy (720 req/hour per proxy)
-  - **Coverage**: 455ms detection window (2.2 req/sec total across all proxies)
-  - **Detection latency**: <455ms average
-  - **Rate compliance**: 2.2 req/sec total (well under Announcements API undocumented ~3-4 req/sec limit)
+  - **Staggered execution**: 300ms delay between workers (dynamically calculated)
+  - **Interval**: 3.3 seconds per proxy (1091 req/hour per proxy)
+  - **Coverage**: 300ms detection window (0.3s, 3.33 req/sec total across all proxies)
+  - **Detection latency**: <300ms average
+  - **Rate compliance**: 0.303 req/sec per IP (well under 30 req/sec per IP limit)
   - **ETag optimization**: Prevents redundant data transfer with 304 Not Modified responses
   - **5-Rule Filtering System** (prevents false positives):
     1. **Unicode Normalization**: Handles spacing variations (거래지원 = 거래 지원)

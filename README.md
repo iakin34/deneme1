@@ -4,7 +4,7 @@ Upbit borsasında yeni listelenen coinleri otomatik algılayan ve Bitget borsas�
 
 ## 🚀 Özellikler
 
-- ⚡ **Ultra Hızlı**: 455ms coverage ile yeni listing yakalama
+- ⚡ **Ultra Hızlı**: 300ms coverage ile yeni listing yakalama (0.3s)
 - 🔄 **11 Proxy Rotasyon**: Upbit rate limit optimizasyonu ile 24/7 monitoring
 - 🤖 **Telegram Bot Arayüzü**: Çoklu kullanıcı yönetimi ve inline keyboard UI
 - 🔐 **Güvenli Credential Yönetimi**: Şifreli API key saklama
