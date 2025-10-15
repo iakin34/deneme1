@@ -1,0 +1,59 @@
+🧪 Testing interval: 500ms (2.00 req/sec)
+2025/10/15 21:01:45    Progress: 10/50 (status: 200)
+2025/10/15 21:01:49 ⚠️ RATE LIMIT at request #16 (elapsed: 8.946089914s)
+2025/10/15 21:01:51    Progress: 20/50 (status: 200)
+2025/10/15 21:01:52 ⚠️ RATE LIMIT at request #21 (elapsed: 11.864582484s)
+2025/10/15 21:01:57    Progress: 30/50 (status: 200)
+2025/10/15 21:02:03    Progress: 40/50 (status: 200)
+2025/10/15 21:02:04 ⚠️ RATE LIMIT at request #42 (elapsed: 24.224155308s)
+2025/10/15 21:02:09    Progress: 50/50 (status: 200)
+2025/10/15 21:02:09 ✅ Completed: 47 success, 3 rate limits (94.0% success)
+2025/10/15 21:02:09 ❌ This interval is NOT safe (too many rate limits)
+2025/10/15 21:02:09 
+⏸️  Waiting 1m0s before next test...
+2025/10/15 21:03:09 
+🧪 Testing interval: 1s (1.00 req/sec)
+2025/10/15 21:03:19    Progress: 10/50 (status: 200)
+2025/10/15 21:03:30    Progress: 20/50 (status: 200)
+2025/10/15 21:03:39 ⚠️ RATE LIMIT at request #28 (elapsed: 29.391656291s)
+2025/10/15 21:03:41    Progress: 30/50 (status: 200)
+2025/10/15 21:03:52    Progress: 40/50 (status: 200)
+2025/10/15 21:03:56 ⚠️ RATE LIMIT at request #44 (elapsed: 47.04504206s)
+2025/10/15 21:04:03    Progress: 50/50 (status: 200)
+2025/10/15 21:04:04 ✅ Completed: 48 success, 2 rate limits (96.0% success)
+2025/10/15 21:04:04 🎯 This interval is SAFE for production!
+2025/10/15 21:04:04 
+⏸️  Waiting 1m0s before next test...
+2025/10/15 21:05:04 
+🧪 Testing interval: 2s (0.50 req/sec)
+2025/10/15 21:05:23    Progress: 10/50 (status: 200)
+2025/10/15 21:05:44    Progress: 20/50 (status: 200)
+2025/10/15 21:06:05    Progress: 30/50 (status: 200)
+2025/10/15 21:06:26    Progress: 40/50 (status: 200)
+2025/10/15 21:06:47    Progress: 50/50 (status: 200)
+2025/10/15 21:06:49 ✅ Completed: 50 success, 0 rate limits (100.0% success)
+2025/10/15 21:06:49 🎯 This interval is SAFE for production!
+2025/10/15 21:06:49 
+⏸️  Waiting 1m0s before next test...
+2025/10/15 21:07:49 
+🧪 Testing interval: 3s (0.33 req/sec)
+2025/10/15 21:08:18    Progress: 10/50 (status: 200)
+2025/10/15 21:08:49    Progress: 20/50 (status: 200)
+2025/10/15 21:09:20    Progress: 30/50 (status: 200)
+2025/10/15 21:09:52    Progress: 40/50 (status: 200)
+2025/10/15 21:10:23    Progress: 50/50 (status: 200)
+2025/10/15 21:10:26 ✅ Completed: 50 success, 0 rate limits (100.0% success)
+2025/10/15 21:10:26 🎯 This interval is SAFE for production!
+2025/10/15 21:10:26 
+⏸️  Waiting 1m0s before next test...
+2025/10/15 21:11:26 
+🧪 Testing interval: 3.3s (0.30 req/sec)
+2025/10/15 21:11:58    Progress: 10/50 (status: 200)
+2025/10/15 21:12:32    Progress: 20/50 (status: 200)
+2025/10/15 21:13:06    Progress: 30/50 (status: 200)
+2025/10/15 21:13:40    Progress: 40/50 (status: 200)
+2025/10/15 21:14:14    Progress: 50/50 (status: 200)
+2025/10/15 21:14:18 ✅ Completed: 50 success, 0 rate limits (100.0% success)
+2025/10/15 21:14:18 🎯 This interval is SAFE for production!
+2025/10/15 21:14:18 
+⏸️  Waiting 1m0s before next test..
