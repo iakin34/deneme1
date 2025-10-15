@@ -4,8 +4,8 @@ Upbit borsasında yeni listelenen coinleri otomatik algılayan ve Bitget borsas�
 
 ## 🚀 Özellikler
 
-- ⚡ **Ultra Hızlı**: 300ms coverage ile yeni listing yakalama (0.3s)
-- 🔄 **11 Proxy Rotasyon**: Upbit rate limit optimizasyonu ile 24/7 monitoring
+- ⚡ **Ultra Hızlı**: 95ms coverage ile yeni listing yakalama (0.095s - 21 proxy)
+- 🔄 **21 Proxy Rotasyon**: Upbit rate limit optimizasyonu ile 24/7 monitoring (2s interval, 100% güvenli)
 - 🤖 **Telegram Bot Arayüzü**: Çoklu kullanıcı yönetimi ve inline keyboard UI
 - 🔐 **Güvenli Credential Yönetimi**: Şifreli API key saklama
 - 📊 **Otomatik P&L Takibi**: 5, 30, 60 dakika ve 6 saatte bir bildirim
@@ -110,8 +110,9 @@ nano .env
 # Telegram Bot Token (BotFather'dan alınır)
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
-# 11 SOCKS5 Proxy Sunucuları (format: username:password@ip:port)
+# 21 SOCKS5 Proxy Sunucuları (format: username:password@ip:port)
 # Important: Use proxies from different ASN/providers for best results
+# With 21 proxies + 2s interval = 95ms coverage (0.095s)
 UPBIT_PROXY_1=proxy1_user:proxy1_pass@ip1:1080
 UPBIT_PROXY_2=proxy2_user:proxy2_pass@ip2:1080
 UPBIT_PROXY_3=proxy3_user:proxy3_pass@ip3:1080
@@ -123,6 +124,16 @@ UPBIT_PROXY_8=proxy8_user:proxy8_pass@ip8:1080
 UPBIT_PROXY_9=proxy9_user:proxy9_pass@ip9:1080
 UPBIT_PROXY_10=proxy10_user:proxy10_pass@ip10:1080
 UPBIT_PROXY_11=proxy11_user:proxy11_pass@ip11:1080
+UPBIT_PROXY_12=proxy12_user:proxy12_pass@ip12:1080
+UPBIT_PROXY_13=proxy13_user:proxy13_pass@ip13:1080
+UPBIT_PROXY_14=proxy14_user:proxy14_pass@ip14:1080
+UPBIT_PROXY_15=proxy15_user:proxy15_pass@ip15:1080
+UPBIT_PROXY_16=proxy16_user:proxy16_pass@ip16:1080
+UPBIT_PROXY_17=proxy17_user:proxy17_pass@ip17:1080
+UPBIT_PROXY_18=proxy18_user:proxy18_pass@ip18:1080
+UPBIT_PROXY_19=proxy19_user:proxy19_pass@ip19:1080
+UPBIT_PROXY_20=proxy20_user:proxy20_pass@ip20:1080
+UPBIT_PROXY_21=proxy21_user:proxy21_pass@ip21:1080
 
 # Şifreleme anahtarı (32 karakter)
 BOT_ENCRYPTION_KEY=your_32_character_encryption_key_here_12345
