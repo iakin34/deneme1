@@ -371,14 +371,12 @@ func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
         log.Printf("📊 Cached tickers count: %d, Current API response: %v", len(um.cachedTickers), newTickersList)
 }
 
-func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int) {
-        // Stagger start times to spread requests evenly
-        // Spread stagger across the full interval to maximize coverage
-        staggerDelay := time.Duration(proxyIndex*1000) * time.Millisecond
+func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, staggerMs int) {
+        // Stagger start times dynamically based on proxy count
+        staggerDelay := time.Duration(proxyIndex*staggerMs) * time.Millisecond
         time.Sleep(staggerDelay)
 
-        // Calculate interval: 12s per proxy ensures <300 req/hour (safe under 400 limit)
-        // With 11 proxies staggered 1s apart: 1 check/second coverage, but each proxy only checks every 12s
+        // Fixed interval: 12s per proxy ensures <300 req/hour (safe under 400 limit)
         interval := 12 * time.Second
         ticker := time.NewTicker(interval)
         defer ticker.Stop()
@@ -432,26 +430,39 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int) {
 }
 
 func (um *UpbitMonitor) Start() {
-        log.Println("🚀 Upbit Monitor Starting with PARALLEL PROXY EXECUTION...")
-        log.Printf("📊 Total Proxies: %d", len(um.proxies))
-
+        log.Println("🚀 Upbit Monitor Starting with DYNAMIC PARALLEL PROXY EXECUTION...")
+        
         if err := um.loadExistingData(); err != nil {
                 log.Printf("⚠️ Warning: %v", err)
         }
 
         proxyCount := len(um.proxies)
-        proxyInterval := 12.0 // seconds per proxy
-        requestsPerHour := 3600 / proxyInterval
-        staggerInterval := 1.0 // 1 second stagger between workers
-        checksPerSecond := 1.0 / staggerInterval // 1 check/sec with 11 proxies staggered 1s apart
-        
-        log.Printf("⚡ Rate Limit Compliance: %.0f req/hour per proxy (safe under 400 limit)", requestsPerHour)
-        log.Printf("⚡ Coverage: ~%.1f checks/second (11 proxies with %gs stagger)", checksPerSecond, staggerInterval)
-        log.Printf("⏱️ Expected detection latency: <%.0fs (max stagger span)", float64(proxyCount)*staggerInterval)
+        if proxyCount == 0 {
+                log.Fatal("❌ No proxies configured! Please add UPBIT_PROXY_* to .env file")
+        }
 
-        // Launch parallel workers for each proxy
+        // DYNAMIC CALCULATION based on proxy count
+        proxyInterval := 12.0 // seconds per proxy (fixed for 300 req/hour rate limit)
+        requestsPerHour := 3600 / proxyInterval // 300 req/hour per proxy
+        
+        // Stagger dynamically: spread 12s interval across all proxies
+        staggerMs := int((12000.0 / float64(proxyCount))) // milliseconds
+        coverageSeconds := float64(staggerMs) / 1000.0
+        checksPerSecond := 1.0 / coverageSeconds
+        
+        log.Printf("📊 DYNAMIC PROXY CONFIGURATION:")
+        log.Printf("   • Total Proxies: %d", proxyCount)
+        log.Printf("   • Rate Limit: %.0f req/hour per proxy (safe under 400)", requestsPerHour)
+        log.Printf("   • Interval: %.0fs per proxy", proxyInterval)
+        log.Printf("   • Stagger: %dms between workers", staggerMs)
+        log.Printf("⚡ PERFORMANCE:")
+        log.Printf("   • Coverage: %.0fms (%.3fs)", coverageSeconds*1000, coverageSeconds)
+        log.Printf("   • Speed: ~%.1f checks/second", checksPerSecond)
+        log.Printf("   • Total capacity: %.0f req/hour", float64(proxyCount)*requestsPerHour)
+
+        // Launch parallel workers for each proxy with dynamic stagger
         for i, proxyURL := range um.proxies {
-                go um.startProxyWorker(proxyURL, i)
+                go um.startProxyWorker(proxyURL, i, staggerMs)
         }
 
         // Keep main goroutine alive
