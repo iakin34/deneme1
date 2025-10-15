@@ -376,8 +376,8 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
         staggerDelay := time.Duration(proxyIndex*staggerMs) * time.Millisecond
         time.Sleep(staggerDelay)
 
-        // Fixed interval: 3s per proxy = 1200 req/hour (Upbit per-IP limit)
-        interval := 3 * time.Second
+        // Fixed interval: 4s per proxy = 900 req/hour (safe under 1200 Upbit limit)
+        interval := 4 * time.Second
         ticker := time.NewTicker(interval)
         defer ticker.Stop()
 
@@ -442,17 +442,17 @@ func (um *UpbitMonitor) Start() {
         }
 
         // DYNAMIC CALCULATION based on proxy count
-        proxyInterval := 3.0 // seconds per proxy (1200 req/hour per IP - Upbit limit)
-        requestsPerHour := 3600 / proxyInterval // 1200 req/hour per proxy
+        proxyInterval := 4.0 // seconds per proxy (900 req/hour - safe under 1200 limit)
+        requestsPerHour := 3600 / proxyInterval // 900 req/hour per proxy
         
-        // Stagger dynamically: spread 3s interval across all proxies
-        staggerMs := int((3000.0 / float64(proxyCount))) // milliseconds
+        // Stagger dynamically: spread 4s interval across all proxies
+        staggerMs := int((4000.0 / float64(proxyCount))) // milliseconds
         coverageSeconds := float64(staggerMs) / 1000.0
         checksPerSecond := 1.0 / coverageSeconds
         
         log.Printf("📊 DYNAMIC PROXY CONFIGURATION:")
         log.Printf("   • Total Proxies: %d", proxyCount)
-        log.Printf("   • Rate Limit: %.0f req/hour per proxy (safe under 400)", requestsPerHour)
+        log.Printf("   • Rate Limit: %.0f req/hour per proxy (safe under 1200 limit)", requestsPerHour)
         log.Printf("   • Interval: %.0fs per proxy", proxyInterval)
         log.Printf("   • Stagger: %dms between workers", staggerMs)
         log.Printf("⚡ PERFORMANCE:")
