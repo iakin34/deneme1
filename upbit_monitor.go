@@ -405,10 +405,11 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
         staggerDelay := time.Duration(proxyIndex*staggerMs) * time.Millisecond
         time.Sleep(staggerDelay)
 
-        // Upbit Quotation API: 10 req/sec per IP (WITHOUT Origin header)
-        // With Origin header: 1 req/10s = 360 req/hour (very strict!)
-        // Using 3s interval = 1200 req/hour = 0.33 req/sec (safe under 10 req/sec)
-        interval := time.Duration(3000) * time.Millisecond
+        // Upbit Announcements API appears to have stricter undocumented limits
+        // Testing shows ~3-4 req/sec causes 429 errors across ALL proxies
+        // Using 5s interval = 720 req/hour = 0.2 req/sec per proxy
+        // Total with 11 proxies: 2.2 req/sec (conservative approach)
+        interval := time.Duration(5000) * time.Millisecond
         ticker := time.NewTicker(interval)
         defer ticker.Stop()
 
@@ -477,10 +478,9 @@ func (um *UpbitMonitor) Start() {
         }
 
         // DYNAMIC CALCULATION based on proxy count
-        // Upbit Quotation API: 10 req/sec per IP (WITHOUT Origin header!)
-        // With Origin header: 1 req/10s (360 req/hour) - MUST AVOID!
-        // Using 3s interval: 1200 req/hour = 0.33 req/sec (safe under 10 req/sec)
-        proxyInterval := 3.0 // seconds per proxy (1200 req/hour per proxy)
+        // Upbit Announcements API has undocumented stricter limits (~3-4 req/sec total)
+        // Using 5s interval to stay well under the threshold
+        proxyInterval := 5.0 // seconds per proxy (720 req/hour per proxy)
         requestsPerHour := 3600 / proxyInterval // 1200 req/hour per proxy
         
         // Stagger dynamically: spread interval across all proxies

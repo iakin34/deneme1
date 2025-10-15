@@ -1,0 +1,34 @@
+root@ubuntu3:~# tail -1000 /var/log/upbit-bitget-bot-error.log | grep "429" | tail -20
+2025/10/15 19:59:02 ⚠️ Proxy #4: Unexpected status 429
+2025/10/15 19:59:02 ⚠️ Proxy #5: Unexpected status 429
+2025/10/15 19:59:02 ⚠️ Proxy #6: Unexpected status 429
+2025/10/15 19:59:03 ⚠️ Proxy #7: Unexpected status 429
+2025/10/15 19:59:03 ⚠️ Proxy #8: Unexpected status 429
+2025/10/15 19:59:03 ⚠️ Proxy #9: Unexpected status 429
+2025/10/15 19:59:03 ⚠️ Proxy #10: Unexpected status 429
+2025/10/15 19:59:04 ⚠️ Proxy #11: Unexpected status 429
+2025/10/15 19:59:04 ⚠️ Proxy #1: Unexpected status 429
+2025/10/15 19:59:04 ⚠️ Proxy #2: Unexpected status 429
+2025/10/15 19:59:04 ⚠️ Proxy #3: Unexpected status 429
+2025/10/15 19:59:05 ⚠️ Proxy #4: Unexpected status 429
+2025/10/15 19:59:05 ⚠️ Proxy #5: Unexpected status 429
+2025/10/15 19:59:05 ⚠️ Proxy #6: Unexpected status 429
+2025/10/15 19:59:06 ⚠️ Proxy #7: Unexpected status 429
+2025/10/15 19:59:06 ⚠️ Proxy #8: Unexpected status 429
+2025/10/15 19:59:06 ⚠️ Proxy #9: Unexpected status 429
+2025/10/15 19:59:06 ⚠️ Proxy #10: Unexpected status 429
+2025/10/15 19:59:07 ⚠️ Proxy #11: Unexpected status 429
+2025/10/15 19:59:07 ⚠️ Proxy #1: Unexpected status 429
+root@ubuntu3:~# cat /root/upbit-trade/.env | grep UPBIT_PROXY
+UPBIT_PROXY_1=socks5://doproxy1:DigitalOcean55@143.198.221.194:1080
+UPBIT_PROXY_2=socks5://doproxy2:DigitalOcean55@159.223.68.49:1080
+UPBIT_PROXY_3=socks5://do2proxy1:DigitalOcean55@206.189.46.37:1080
+UPBIT_PROXY_4=socks5://do2proxy2:DigitalOcean55@157.245.201.102:1080
+UPBIT_PROXY_5=socks5://do2proxy3:DigitalOcean55@68.183.180.96:1080
+UPBIT_PROXY_6=socks5://do2proxy4:DigitalOcean55@188.166.183.106:1080
+UPBIT_PROXY_7=socks5://do2proxy5:DigitalOcean55@188.166.210.172:1080
+UPBIT_PROXY_8=socks5://do2proxy6:DigitalOcean55@167.99.71.61:1080
+UPBIT_PROXY_9=socks5://do2proxy7:DigitalOcean55@159.223.45.224:1080
+UPBIT_PROXY_10=socks5://do2proxy8:DigitalOcean55@152.42.240.96:1080
+UPBIT_PROXY_11=socks5://do2proxy9:DigitalOcean55@146.190.80.213:1080
+root@ubuntu3:~# 

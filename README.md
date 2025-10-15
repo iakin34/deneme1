@@ -4,8 +4,8 @@ Upbit borsasında yeni listelenen coinleri otomatik algılayan ve Bitget borsas�
 
 ## 🚀 Özellikler
 
-- ⚡ **Ultra Hızlı**: 200-500ms içinde otomatik trade execution
-- 🔄 **12 Proxy Rotasyon**: Rate limit bypass ile kesintisiz monitoring
+- ⚡ **Ultra Hızlı**: 455ms coverage ile yeni listing yakalama
+- 🔄 **11 Proxy Rotasyon**: Upbit rate limit optimizasyonu ile 24/7 monitoring
 - 🤖 **Telegram Bot Arayüzü**: Çoklu kullanıcı yönetimi ve inline keyboard UI
 - 🔐 **Güvenli Credential Yönetimi**: Şifreli API key saklama
 - 📊 **Otomatik P&L Takibi**: 5, 30, 60 dakika ve 6 saatte bir bildirim
@@ -110,19 +110,19 @@ nano .env
 # Telegram Bot Token (BotFather'dan alınır)
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
-# 12 SOCKS5 Proxy Sunucuları (format: username:password@ip:port)
-PROXY_1=proxy1_user:proxy1_pass@ip1:1080
-PROXY_2=proxy2_user:proxy2_pass@ip2:1080
-PROXY_3=proxy3_user:proxy3_pass@ip3:1080
-PROXY_4=proxy4_user:proxy4_pass@ip4:1080
-PROXY_5=proxy5_user:proxy5_pass@ip5:1080
-PROXY_6=proxy6_user:proxy6_pass@ip6:1080
-PROXY_7=proxy7_user:proxy7_pass@ip7:1080
-PROXY_8=proxy8_user:proxy8_pass@ip8:1080
-PROXY_9=proxy9_user:proxy9_pass@ip9:1080
-PROXY_10=proxy10_user:proxy10_pass@ip10:1080
-PROXY_11=proxy11_user:proxy11_pass@ip11:1080
-PROXY_12=proxy12_user:proxy12_pass@ip12:1080
+# 11 SOCKS5 Proxy Sunucuları (format: username:password@ip:port)
+# Important: Use proxies from different ASN/providers for best results
+UPBIT_PROXY_1=proxy1_user:proxy1_pass@ip1:1080
+UPBIT_PROXY_2=proxy2_user:proxy2_pass@ip2:1080
+UPBIT_PROXY_3=proxy3_user:proxy3_pass@ip3:1080
+UPBIT_PROXY_4=proxy4_user:proxy4_pass@ip4:1080
+UPBIT_PROXY_5=proxy5_user:proxy5_pass@ip5:1080
+UPBIT_PROXY_6=proxy6_user:proxy6_pass@ip6:1080
+UPBIT_PROXY_7=proxy7_user:proxy7_pass@ip7:1080
+UPBIT_PROXY_8=proxy8_user:proxy8_pass@ip8:1080
+UPBIT_PROXY_9=proxy9_user:proxy9_pass@ip9:1080
+UPBIT_PROXY_10=proxy10_user:proxy10_pass@ip10:1080
+UPBIT_PROXY_11=proxy11_user:proxy11_pass@ip11:1080
 
 # Şifreleme anahtarı (32 karakter)
 BOT_ENCRYPTION_KEY=your_32_character_encryption_key_here_12345
