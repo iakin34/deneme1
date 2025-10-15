@@ -898,8 +898,8 @@ tail -f /var/log/upbit-bitget-bot.log
 
 ### 🚀 Performance
 
-- **0.3s Coverage**: 11 proxy ile 300ms polling interval
-- **0.4-0.5s Execution**: Ortalama trade tamamlama süresi
-- **1091 req/hour**: Proxy başına (Upbit 1200 limit altında)
+- **0.36s Coverage**: 11 proxy ile 364ms polling interval (4s cycle)
+- **0.4-0.6s Execution**: Ortalama trade tamamlama süresi
+- **900 req/hour**: Proxy başına (Upbit gerçek limit ~1000 altında, güvenli)
 
 *Son güncelleme: 2025-10-15*

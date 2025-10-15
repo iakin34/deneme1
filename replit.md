@@ -1,6 +1,6 @@
 # Overview
 
-This is a cryptocurrency trading bot that monitors Upbit exchange for new coin listing announcements and automatically executes trades on Bitget exchange. The system uses **parallel proxy execution** (11 SOCKS5 proxies running simultaneously) to achieve **0.3s detection coverage** and **~0.4-0.5 seconds total execution time** from Upbit announcement to Bitget order placement. Features include automated time synchronization monitoring, trade execution logging with microsecond precision, 5-rule filtering system for 100% accurate listing detection, multi-user support, and duplicate trade prevention.
+This is a cryptocurrency trading bot that monitors Upbit exchange for new coin listing announcements and automatically executes trades on Bitget exchange. The system uses **parallel proxy execution** (11 SOCKS5 proxies running simultaneously) to achieve **0.36s detection coverage** and **~0.4-0.6 seconds total execution time** from Upbit announcement to Bitget order placement. Features include automated time synchronization monitoring, trade execution logging with microsecond precision, 5-rule filtering system for 100% accurate listing detection, multi-user support, and duplicate trade prevention.
 
 # User Preferences
 
@@ -23,10 +23,11 @@ Preferred communication style: Simple, everyday language.
 - Saved to `trade_execution_log.json`
 
 ## Performance Updates
-- Optimized to 0.3s coverage (300ms) with 11 proxies
-- Average execution time: 0.4-0.5 seconds
-- Rate limit: 1091 req/hour per proxy (under 1200 limit)
-- Dynamic stagger calculation: 300ms between workers
+- Optimized to 0.36s coverage (364ms) with 11 proxies
+- Average execution time: 0.4-0.6 seconds
+- Rate limit: 900 req/hour per proxy (safe under ~1000 actual limit)
+- Dynamic stagger calculation: 364ms between workers
+- Fixed rate limit issue: Upbit actual limit observed at ~1000 req/hour (not 1200)
 
 # System Architecture
 
