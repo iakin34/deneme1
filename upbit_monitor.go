@@ -371,34 +371,29 @@ func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
         log.Printf("📊 Cached tickers count: %d, Current API response: %v", len(um.cachedTickers), newTickersList)
 }
 
-func (um *UpbitMonitor) Start() {
-        log.Println("Upbit Yeni Listeleme Takipçisi Başlatıldı...")
-        log.Printf("Kullanılacak Proxy Sayısı: %d", len(um.proxies))
+func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int) {
+        // Stagger start times to spread requests evenly
+        staggerDelay := time.Duration(proxyIndex*100) * time.Millisecond
+        time.Sleep(staggerDelay)
 
-        if err := um.loadExistingData(); err != nil {
-                log.Printf("Warning: %v", err)
-        }
-
-        ticker := time.NewTicker(1 * time.Second)
+        // Calculate interval based on number of proxies
+        // With 11 proxies: each checks every 1.1s, total coverage = 11 checks/1.1s ≈ 10 checks/sec
+        interval := time.Duration(len(um.proxies)*100) * time.Millisecond
+        ticker := time.NewTicker(interval)
         defer ticker.Stop()
 
+        log.Printf("🔄 Proxy worker #%d started (interval: %v, stagger: %v)", proxyIndex+1, interval, staggerDelay)
+
+        client, err := um.createProxyClient(proxyURL)
+        if err != nil {
+                log.Printf("❌ Proxy #%d client creation failed: %v", proxyIndex+1, err)
+                return
+        }
+
         for range ticker.C {
-                um.mu.Lock()
-                currentProxy := um.proxies[um.proxyIndex]
-                um.proxyIndex = (um.proxyIndex + 1) % len(um.proxies)
-                um.mu.Unlock()
-
-                log.Printf("Kontrol ediliyor... Proxy: %s", currentProxy)
-
-                client, err := um.createProxyClient(currentProxy)
-                if err != nil {
-                        log.Printf("HATA: Client oluşturulamadı: %v", err)
-                        continue
-                }
-
                 req, err := http.NewRequest("GET", um.apiURL, nil)
                 if err != nil {
-                        log.Printf("HATA: İstek oluşturulamadı: %v", err)
+                        log.Printf("❌ Proxy #%d: Request creation failed: %v", proxyIndex+1, err)
                         continue
                 }
 
@@ -410,13 +405,13 @@ func (um *UpbitMonitor) Start() {
 
                 resp, err := client.Do(req)
                 if err != nil {
-                        log.Printf("HATA: API'ye istek gönderilemedi: %v", err)
+                        log.Printf("❌ Proxy #%d: API request failed: %v", proxyIndex+1, err)
                         continue
                 }
 
                 switch resp.StatusCode {
                 case http.StatusOK:
-                        log.Println("Değişiklik tespit edildi! Veri işleniyor...")
+                        log.Printf("🔥 Proxy #%d: CHANGE DETECTED! Processing...", proxyIndex+1)
                         newETag := resp.Header.Get("ETag")
                         um.mu.Lock()
                         um.cachedETag = newETag
@@ -425,12 +420,36 @@ func (um *UpbitMonitor) Start() {
                         resp.Body.Close()
 
                 case http.StatusNotModified:
-                        log.Println("Veride değişiklik yok (304 Not Modified).")
+                        log.Printf("✓ Proxy #%d: No change (304)", proxyIndex+1)
                         resp.Body.Close()
 
                 default:
-                        log.Printf("Beklenmedik HTTP durum kodu: %d", resp.StatusCode)
+                        log.Printf("⚠️ Proxy #%d: Unexpected status %d", proxyIndex+1, resp.StatusCode)
                         resp.Body.Close()
                 }
         }
+}
+
+func (um *UpbitMonitor) Start() {
+        log.Println("🚀 Upbit Monitor Starting with PARALLEL PROXY EXECUTION...")
+        log.Printf("📊 Total Proxies: %d", len(um.proxies))
+
+        if err := um.loadExistingData(); err != nil {
+                log.Printf("⚠️ Warning: %v", err)
+        }
+
+        proxyCount := len(um.proxies)
+        checkInterval := float64(proxyCount) * 0.1 // seconds
+        checksPerSecond := float64(proxyCount) / checkInterval
+        
+        log.Printf("⚡ Coverage: ~%.1f checks/second (%.0fms per proxy cycle)", checksPerSecond, checkInterval*1000)
+        log.Printf("⏱️ Expected detection latency: <%.0fms", checkInterval*1000/2)
+
+        // Launch parallel workers for each proxy
+        for i, proxyURL := range um.proxies {
+                go um.startProxyWorker(proxyURL, i)
+        }
+
+        // Keep main goroutine alive
+        select {}
 }
