@@ -303,26 +303,73 @@ systemctl status upbit-bitget-bot.service
 
 ### 8.1 Kod Güncellemesi (GitHub'dan)
 
+**Adım adım güncelleme:**
+
 ```bash
-# Service'i durdur
+# 1. Service'i durdur
 systemctl stop upbit-bitget-bot.service
 
-# Güncellemeleri çek
+# 2. Proje klasörüne git
 cd /root/upbit-trade
+
+# 3. Güncellemeleri çek
 git pull origin main
 
-# Dependencies güncelle
+# 4. Dependencies güncelle
 go mod download
 go mod tidy
 
-# Yeniden derle
+# 5. Yeniden derle
 go build -o upbit-bitget-bot .
 
-# Service'i başlat
+# 6. Zaman senkronizasyonu kontrolü
+make checksync
+
+# 7. (Opsiyonel) Upbit ile zaman sync
+make synctime
+
+# 8. Service'i başlat
 systemctl start upbit-bitget-bot.service
 
-# Durumu kontrol et
+# 9. Durumu kontrol et
 systemctl status upbit-bitget-bot.service
+
+# 10. Logları kontrol et (ilk 30 satır)
+tail -n 30 /var/log/upbit-bitget-bot.log
+```
+
+**Zaman Senkronizasyonu Kontrolü:**
+
+Güncelleme sonrası sistem zamanının doğru olduğundan emin olun:
+
+```bash
+# Upbit ve Bitget ile saat farkını kontrol et
+cd /root/upbit-trade
+make checksync
+```
+
+**Beklenen çıktı:**
+```
+📡 UPBIT TIME SYNC:
+   • Clock Offset: -428ms
+   ✅ Clock sync OK (offset < 1s)
+
+📡 BITGET TIME SYNC:
+   • Clock Offset: -34ms
+   ✅ Clock sync OK (offset < 1s)
+```
+
+**Eğer offset > 1 saniye görürseniz:**
+
+```bash
+# Upbit server zamanıyla sistem saatini sync et
+make synctime
+
+# Veya direkt script ile:
+./sync_upbit_time.sh
+
+# Kontrol et
+make checksync
 ```
 
 ### 8.2 Otomatik Güncelleme Script'i (Opsiyonel)
@@ -337,26 +384,46 @@ nano /root/update-bot.sh
 #!/bin/bash
 
 echo "🔄 Upbit-Bitget Bot güncelleniyor..."
+echo ""
 
 # Service durdur
+echo "1️⃣ Stopping service..."
 systemctl stop upbit-bitget-bot.service
 
 # Güncellemeleri çek
+echo "2️⃣ Pulling latest code..."
 cd /root/upbit-trade
 git pull origin main
 
 # Dependencies
+echo "3️⃣ Updating dependencies..."
 go mod download
 go mod tidy
 
 # Build
+echo "4️⃣ Building..."
 go build -o upbit-bitget-bot .
 
+# Zaman sync kontrolü
+echo "5️⃣ Checking time synchronization..."
+make checksync
+
+# Eğer offset > 1s ise uyar
+echo ""
+echo "⚠️  Eğer yukarıda 'WARNING: Clock offset > 1s' görüyorsanız:"
+echo "    make synctime komutuyla zamanı sync edin!"
+echo ""
+
 # Service başlat
+echo "6️⃣ Starting service..."
 systemctl start upbit-bitget-bot.service
 
+echo ""
 echo "✅ Güncelleme tamamlandı!"
-systemctl status upbit-bitget-bot.service
+echo ""
+systemctl status upbit-bitget-bot.service --no-pager
+echo ""
+echo "📊 Log izlemek için: tail -f /var/log/upbit-bitget-bot.log"
 ```
 
 **Executable yap:**
@@ -369,7 +436,77 @@ chmod +x /root/update-bot.sh
 /root/update-bot.sh
 ```
 
-### 8.3 Log Rotasyonu (Disk Tasarrufu)
+### 8.3 Yeni Komutlar (Make Kullanımı)
+
+Bot artık **Makefile** ile daha kolay yönetilebiliyor:
+
+```bash
+# Bot'u çalıştır (development)
+make run
+
+# Zaman senkronizasyonu kontrol et
+make checksync
+
+# Upbit server zamanıyla sistem sync et
+make synctime
+
+# Binary oluştur
+make build
+
+# Build dosyalarını temizle
+make clean
+```
+
+**Zaman Senkronizasyonu Detayları:**
+
+```bash
+# 1. Kontrol et
+cd /root/upbit-trade
+make checksync
+```
+
+**Çıktı örneği:**
+```
+⏰ Checking time synchronization with exchanges...
+
+📡 UPBIT TIME SYNC:
+   • Server Time:     2025-10-15 13:29:17.058
+   • Local Time:      2025-10-15 13:29:17.486
+   • Clock Offset:    -428ms
+   • Network Latency: 58ms
+   ✅ Clock sync OK (offset < 1s)
+
+📡 BITGET TIME SYNC:
+   • Server Time:     2025-10-15 13:29:17.707
+   • Local Time:      2025-10-15 13:29:17.742
+   • Clock Offset:    -34ms
+   • Network Latency: 127ms
+   ✅ Clock sync OK (offset < 1s)
+```
+
+```bash
+# 2. Eğer offset > 1s ise sync et
+make synctime
+```
+
+**Sync çıktısı:**
+```
+⏰ Syncing system time with Upbit server...
+
+📡 Upbit Server Time: Tue, 15 Oct 2025 13:29:17 GMT
+🔧 Setting system time to: 2025-10-15 13:29:17
+
+✅ System time synchronized!
+```
+
+**⚠️ Önemli Notlar:**
+
+- `make synctime` çalıştırdıktan sonra NTP otomatik sync kapatılır
+- Sistem zamanı Upbit server zamanıyla eşitlenir
+- Trade timing hassasiyeti için kritik önem taşır
+- Günde 1-2 kere kontrol etmek önerilir
+
+### 8.4 Log Rotasyonu (Disk Tasarrufu)
 
 ```bash
 # Logrotate yapılandırması
@@ -721,4 +858,30 @@ tail -f /var/log/upbit-bitget-bot.log
 
 ---
 
-*Son güncelleme: 2025-10-08*
+*Son güncelleme: 2025-10-15*
+
+---
+
+## 🆕 Yeni Özellikler (v2.0)
+
+### ⏰ Zaman Senkronizasyonu Sistemi
+
+- **Otomatik Kontrol**: Her bot restart'ında Upbit ve Bitget server zamanları kontrol edilir
+- **Clock Offset Uyarısı**: > 1 saniye sapma varsa otomatik uyarı
+- **Manuel Sync**: `make synctime` ile Upbit zamanına göre sistem senkronizasyonu
+- **Trade Accuracy**: Zaman hassasiyeti trade execution için kritik
+
+### 📊 Trade Execution Logging
+
+- **4 Kritik Timestamp**: Detection, file save, order sent, order confirmed
+- **Latency Breakdown**: Her aşamanın süre analizi
+- **Microsecond Precision**: Milisaniye hassasiyetinde kayıt
+- **Log Dosyası**: `trade_execution_log.json`
+
+### 🚀 Performance
+
+- **0.3s Coverage**: 11 proxy ile 300ms polling interval
+- **0.4-0.5s Execution**: Ortalama trade tamamlama süresi
+- **1091 req/hour**: Proxy başına (Upbit 1200 limit altında)
+
+*Son güncelleme: 2025-10-15*
