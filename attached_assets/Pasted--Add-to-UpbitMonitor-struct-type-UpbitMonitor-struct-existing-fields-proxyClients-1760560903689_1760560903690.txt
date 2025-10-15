@@ -1,0 +1,125 @@
+// Add to UpbitMonitor struct
+type UpbitMonitor struct {
+    // ... existing fields
+    proxyClients []*http.Client
+    proxyIndex   int
+    proxyMu      sync.Mutex
+}
+
+// Initialize all proxy clients at startup
+func (um *UpbitMonitor) initializeProxyClients() error {
+    um.proxyClients = make([]*http.Client, len(um.proxies))
+    
+    for i, proxyURL := range um.proxies {
+        client, err := um.createProxyClient(proxyURL)
+        if err != nil {
+            return fmt.Errorf("proxy #%d başlatılamadı: %w", i+1, err)
+        }
+        um.proxyClients[i] = client
+        log.Printf("✅ Proxy #%d initialized: %s", i+1, proxyURL)
+    }
+    
+    return nil
+}
+
+// Get next proxy in round-robin fashion
+func (um *UpbitMonitor) getNextProxyClient() *http.Client {
+    um.proxyMu.Lock()
+    defer um.proxyMu.Unlock()
+    
+    client := um.proxyClients[um.proxyIndex]
+    um.proxyIndex = (um.proxyIndex + 1) % len(um.proxyClients)
+    
+    return client
+}
+
+// Single unified worker with round-robin proxy selection
+func (um *UpbitMonitor) startUnifiedWorker() {
+    // 0.3s target = 300ms interval
+    interval := 300 * time.Millisecond
+    ticker := time.NewTicker(interval)
+    defer ticker.Stop()
+
+    log.Printf("🚀 Unified worker started (interval: %v, proxies: %d)", interval, len(um.proxyClients))
+
+    for range ticker.C {
+        client := um.getNextProxyClient()
+        
+        req, err := http.NewRequest("GET", um.apiURL, nil)
+        if err != nil {
+            log.Printf("❌ Request creation failed: %v", err)
+            continue
+        }
+
+        // Remove Origin header to avoid 1 req/10s limit
+        req.Header.Del("Origin")
+        req.Header.Del("Referer")
+        
+        um.mu.Lock()
+        if um.cachedETag != "" {
+            req.Header.Set("If-None-Match", um.cachedETag)
+        }
+        um.mu.Unlock()
+
+        resp, err := client.Do(req)
+        if err != nil {
+            log.Printf("❌ API request failed: %v", err)
+            continue
+        }
+
+        switch resp.StatusCode {
+        case http.StatusOK:
+            log.Printf("🔥 CHANGE DETECTED! Processing...")
+            newETag := resp.Header.Get("ETag")
+            um.mu.Lock()
+            um.cachedETag = newETag
+            um.mu.Unlock()
+            um.processAnnouncements(resp.Body)
+            resp.Body.Close()
+
+        case http.StatusNotModified:
+            log.Printf("✓ No change (304)")
+            resp.Body.Close()
+
+        case http.StatusTooManyRequests:
+            log.Printf("⚠️ Rate limit! Backing off...")
+            resp.Body.Close()
+            time.Sleep(5 * time.Second) // Temporary backoff
+
+        default:
+            log.Printf("⚠️ Unexpected status %d", resp.StatusCode)
+            resp.Body.Close()
+        }
+    }
+}
+
+// Updated Start function
+func (um *UpbitMonitor) Start() {
+    log.Println("🚀 Upbit Monitor Starting with ROUND-ROBIN PROXY ROTATION...")
+    
+    if err := um.loadExistingData(); err != nil {
+        log.Printf("⚠️ Warning: %v", err)
+    }
+
+    proxyCount := len(um.proxies)
+    if proxyCount == 0 {
+        log.Fatal("❌ No proxies configured!")
+    }
+
+    // Initialize all proxy clients
+    if err := um.initializeProxyClients(); err != nil {
+        log.Fatal(err)
+    }
+
+    log.Printf("📊 CONFIGURATION:")
+    log.Printf("   • Proxies: %d", proxyCount)
+    log.Printf("   • Check interval: 300ms (0.3s)")
+    log.Printf("   • Speed: 3.33 checks/second")
+    log.Printf("   • Strategy: Round-robin rotation")
+    log.Printf("   • Each proxy: ~1 req/3.3s = 1091 req/hour")
+
+    // Single worker with round-robin
+    go um.startUnifiedWorker()
+
+    select {}
+}
