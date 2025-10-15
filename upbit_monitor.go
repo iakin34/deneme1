@@ -373,12 +373,13 @@ func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
 
 func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int) {
         // Stagger start times to spread requests evenly
-        staggerDelay := time.Duration(proxyIndex*100) * time.Millisecond
+        // Spread stagger across the full interval to maximize coverage
+        staggerDelay := time.Duration(proxyIndex*1000) * time.Millisecond
         time.Sleep(staggerDelay)
 
-        // Calculate interval based on number of proxies
-        // With 11 proxies: each checks every 1.1s, total coverage = 11 checks/1.1s ≈ 10 checks/sec
-        interval := time.Duration(len(um.proxies)*100) * time.Millisecond
+        // Calculate interval: 12s per proxy ensures <300 req/hour (safe under 400 limit)
+        // With 11 proxies staggered 1s apart: 1 check/second coverage, but each proxy only checks every 12s
+        interval := 12 * time.Second
         ticker := time.NewTicker(interval)
         defer ticker.Stop()
 
@@ -439,11 +440,14 @@ func (um *UpbitMonitor) Start() {
         }
 
         proxyCount := len(um.proxies)
-        checkInterval := float64(proxyCount) * 0.1 // seconds
-        checksPerSecond := float64(proxyCount) / checkInterval
+        proxyInterval := 12.0 // seconds per proxy
+        requestsPerHour := 3600 / proxyInterval
+        staggerInterval := 1.0 // 1 second stagger between workers
+        checksPerSecond := 1.0 / staggerInterval // 1 check/sec with 11 proxies staggered 1s apart
         
-        log.Printf("⚡ Coverage: ~%.1f checks/second (%.0fms per proxy cycle)", checksPerSecond, checkInterval*1000)
-        log.Printf("⏱️ Expected detection latency: <%.0fms", checkInterval*1000/2)
+        log.Printf("⚡ Rate Limit Compliance: %.0f req/hour per proxy (safe under 400 limit)", requestsPerHour)
+        log.Printf("⚡ Coverage: ~%.1f checks/second (11 proxies with %gs stagger)", checksPerSecond, staggerInterval)
+        log.Printf("⏱️ Expected detection latency: <%.0fs (max stagger span)", float64(proxyCount)*staggerInterval)
 
         // Launch parallel workers for each proxy
         for i, proxyURL := range um.proxies {
