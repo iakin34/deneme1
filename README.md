@@ -151,6 +151,38 @@ username:password@ip_address:port
 
 ---
 
+## 🔬 4.5 Rate Limit Testi (ÖNEMLİ - Önce Test Et!)
+
+**Botu çalıştırmadan önce Upbit API'nin gerçek rate limit'ini test edin:**
+
+```bash
+cd /root/upbit-trade
+make testrate
+```
+
+**Test süresi:** ~7-10 dakika  
+**Amaç:** Farklı interval'larda (0.5s, 1s, 2s, 3s, 3.3s, 4s, 5s) test yaparak güvenli limiti bulur
+
+**Test sonuçları:**
+- `rate_limit_test_results.json` dosyasında kaydedilir
+- Hangi interval'de 429 (rate limit) aldığını gösterir
+- Optimal coverage'ı önerir
+
+**Örnek çıktı:**
+```
+🎯 RECOMMENDATION
+=================
+✅ Safe interval found: 3.3s
+📏 With 11 proxies, coverage would be: 300ms (0.300s)
+🎉 This achieves your 0.3s target!
+```
+
+**Eğer test başarısız olursa:**
+- Farklı ASN/provider'dan proxy kullanın (AWS, Vultr, Hetzner karışımı)
+- Ya da interval'i artırın (5s = 455ms coverage)
+
+---
+
 ## 🔨 5. Build (Derleme)
 
 ### 5.1 Binary Oluşturma

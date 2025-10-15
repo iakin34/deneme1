@@ -1,0 +1,436 @@
+Test Planı
+
+# 1. İlk çalıştırma - rate limit header'larını görmek için
+go run main.go
+
+# 2. Log'ları incele:
+# - X-RateLimit-Limit: Maksimum limit
+# - X-RateLimit-Remaining: Kalan hak
+# - Retry-After: Kaç saniye beklemeli
+Eğer header'lar yoksa, Upbit endpoint-specific bir limit koymuş olabilir. O zaman başlangıç interval'i artırın:
+
+
+pool, err := NewAdaptiveProxyPool(um.proxies, 1000*time.Millisecond) // 1 saniye başlangıç
+Sonucu paylaşın, gerçek limiti tespit edelim. 🎯
+
+peki ben upbitin bu koyduğu limiti ölçme şansım yok mu? bunu bir yerden bulamıyorum
+
+Ölçebilirsiniz! Empirical testing yapacağız - bilimsel deney gibi. 🔬
+
+🧪 Rate Limit Ölçüm Sistemi
+
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"sync"
+	"sync/atomic"
+	"time"
+)
+
+type RateLimitTest struct {
+	client           *http.Client
+	apiURL           string
+	
+	// Metrics
+	totalRequests    atomic.Int64
+	successRequests  atomic.Int64
+	rateLimitHits    atomic.Int64
+	
+	// Rate limit detection
+	firstRateLimit   time.Time
+	lastRateLimit    time.Time
+	rateLimitMu      sync.Mutex
+	
+	// Request timing
+	requestTimes     []time.Time
+	timingMu         sync.Mutex
+}
+
+type TestResult struct {
+	TestName              string        `json:"test_name"`
+	Duration              time.Duration `json:"duration_seconds"`
+	TotalRequests         int64         `json:"total_requests"`
+	SuccessRequests       int64         `json:"success_requests"`
+	RateLimitHits         int64         `json:"rate_limit_hits"`
+	RequestsPerSecond     float64       `json:"requests_per_second"`
+	RequestsPerMinute     float64       `json:"requests_per_minute"`
+	RequestsPerHour       float64       `json:"requests_per_hour"`
+	TimeToFirstRateLimit  time.Duration `json:"time_to_first_rate_limit_seconds"`
+	RateLimitHeaders      map[string]string `json:"rate_limit_headers"`
+}
+
+func NewRateLimitTest(proxyURL, apiURL string) (*RateLimitTest, error) {
+	client, err := createProxyClient(proxyURL)
+	if err != nil {
+		return nil, err
+	}
+	
+	return &RateLimitTest{
+		client:       client,
+		apiURL:       apiURL,
+		requestTimes: make([]time.Time, 0, 10000),
+	}, nil
+}
+
+func (rlt *RateLimitTest) makeRequest() (statusCode int, headers map[string]string, err error) {
+	req, err := http.NewRequest("GET", rlt.apiURL, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+	
+	// Remove Origin header
+	req.Header.Del("Origin")
+	req.Header.Del("Referer")
+	
+	rlt.timingMu.Lock()
+	rlt.requestTimes = append(rlt.requestTimes, time.Now())
+	rlt.timingMu.Unlock()
+	
+	resp, err := rlt.client.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+	
+	// Capture rate limit headers
+	headers = make(map[string]string)
+	for _, key := range []string{
+		"X-RateLimit-Limit",
+		"X-RateLimit-Remaining",
+		"X-RateLimit-Reset",
+		"Retry-After",
+		"X-Upbit-RateLimit-Limit",
+		"X-Upbit-RateLimit-Remaining",
+	} {
+		if val := resp.Header.Get(key); val != "" {
+			headers[key] = val
+		}
+	}
+	
+	rlt.totalRequests.Add(1)
+	
+	if resp.StatusCode == http.StatusTooManyRequests {
+		rlt.rateLimitHits.Add(1)
+		
+		rlt.rateLimitMu.Lock()
+		if rlt.firstRateLimit.IsZero() {
+			rlt.firstRateLimit = time.Now()
+		}
+		rlt.lastRateLimit = time.Now()
+		rlt.rateLimitMu.Unlock()
+	} else if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotModified {
+		rlt.successRequests.Add(1)
+	}
+	
+	return resp.StatusCode, headers, nil
+}
+
+// TEST 1: Aggressive burst test
+func (rlt *RateLimitTest) testAggressiveBurst(duration time.Duration) TestResult {
+	log.Printf("🔥 TEST 1: AGGRESSIVE BURST (no delay, %v duration)", duration)
+	
+	startTime := time.Now()
+	endTime := startTime.Add(duration)
+	
+	var rateLimitHeaders map[string]string
+	requestCount := 0
+	
+	for time.Now().Before(endTime) {
+		status, headers, err := rlt.makeRequest()
+		requestCount++
+		
+		if err != nil {
+			log.Printf("❌ Error: %v", err)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		
+		if status == http.StatusTooManyRequests {
+			log.Printf("⚠️ RATE LIMIT at request #%d", requestCount)
+			rateLimitHeaders = headers
+			break
+		}
+		
+		if requestCount%10 == 0 {
+			log.Printf("✓ Completed %d requests (status: %d)", requestCount, status)
+		}
+		
+		// Tiny delay to prevent connection exhaustion
+		time.Sleep(10 * time.Millisecond)
+	}
+	
+	elapsed := time.Since(startTime)
+	
+	return TestResult{
+		TestName:              "Aggressive Burst",
+		Duration:              elapsed,
+		TotalRequests:         rlt.totalRequests.Load(),
+		SuccessRequests:       rlt.successRequests.Load(),
+		RateLimitHits:         rlt.rateLimitHits.Load(),
+		RequestsPerSecond:     float64(rlt.totalRequests.Load()) / elapsed.Seconds(),
+		RequestsPerMinute:     float64(rlt.totalRequests.Load()) / elapsed.Minutes(),
+		RequestsPerHour:       float64(rlt.totalRequests.Load()) / elapsed.Hours(),
+		TimeToFirstRateLimit:  elapsed,
+		RateLimitHeaders:      rateLimitHeaders,
+	}
+}
+
+// TEST 2: Sustained load test
+func (rlt *RateLimitTest) testSustainedLoad(interval time.Duration, duration time.Duration) TestResult {
+	log.Printf("⏱️  TEST 2: SUSTAINED LOAD (interval: %v, duration: %v)", interval, duration)
+	
+	startTime := time.Now()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	
+	timeoutChan := time.After(duration)
+	var rateLimitHeaders map[string]string
+	
+	requestCount := 0
+	
+	for {
+		select {
+		case <-ticker.C:
+			status, headers, err := rlt.makeRequest()
+			requestCount++
+			
+			if err != nil {
+				log.Printf("❌ Error: %v", err)
+				continue
+			}
+			
+			if status == http.StatusTooManyRequests {
+				log.Printf("⚠️ RATE LIMIT at request #%d (elapsed: %v)", requestCount, time.Since(startTime))
+				rateLimitHeaders = headers
+				
+				// Continue testing after rate limit
+				log.Printf("   Waiting 60s before continuing...")
+				time.Sleep(60 * time.Second)
+			} else if requestCount%20 == 0 {
+				log.Printf("✓ Completed %d requests (status: %d)", requestCount, status)
+			}
+			
+		case <-timeoutChan:
+			elapsed := time.Since(startTime)
+			
+			return TestResult{
+				TestName:              fmt.Sprintf("Sustained Load (%v interval)", interval),
+				Duration:              elapsed,
+				TotalRequests:         rlt.totalRequests.Load(),
+				SuccessRequests:       rlt.successRequests.Load(),
+				RateLimitHits:         rlt.rateLimitHits.Load(),
+				RequestsPerSecond:     float64(rlt.totalRequests.Load()) / elapsed.Seconds(),
+				RequestsPerMinute:     float64(rlt.totalRequests.Load()) / elapsed.Minutes(),
+				RequestsPerHour:       float64(rlt.totalRequests.Load()) / elapsed.Hours(),
+				TimeToFirstRateLimit:  rlt.firstRateLimit.Sub(startTime),
+				RateLimitHeaders:      rateLimitHeaders,
+			}
+		}
+	}
+}
+
+// TEST 3: Binary search for exact limit
+func (rlt *RateLimitTest) testBinarySearch() TestResult {
+	log.Printf("🎯 TEST 3: BINARY SEARCH for exact rate limit")
+	
+	startTime := time.Now()
+	
+	// Try different intervals to find the sweet spot
+	intervals := []time.Duration{
+		50 * time.Millisecond,   // 20 req/sec
+		100 * time.Millisecond,  // 10 req/sec
+		200 * time.Millisecond,  // 5 req/sec
+		300 * time.Millisecond,  // 3.33 req/sec
+		500 * time.Millisecond,  // 2 req/sec
+		1000 * time.Millisecond, // 1 req/sec
+		2000 * time.Millisecond, // 0.5 req/sec
+		3000 * time.Millisecond, // 0.33 req/sec
+	}
+	
+	var rateLimitHeaders map[string]string
+	
+	for _, interval := range intervals {
+		log.Printf("\n--- Testing interval: %v (%.2f req/sec) ---", interval, 1000.0/interval.Milliseconds())
+		
+		// Make 50 requests at this interval
+		successCount := 0
+		rateLimitCount := 0
+		
+		for i := 0; i < 50; i++ {
+			status, headers, err := rlt.makeRequest()
+			
+			if err != nil {
+				log.Printf("❌ Error: %v", err)
+				continue
+			}
+			
+			if status == http.StatusTooManyRequests {
+				rateLimitCount++
+				rateLimitHeaders = headers
+				log.Printf("⚠️ RATE LIMIT at request #%d with interval %v", i+1, interval)
+				
+				if rateLimitCount >= 3 {
+					log.Printf("❌ Too many rate limits, this interval is too fast")
+					break
+				}
+				
+				time.Sleep(60 * time.Second)
+			} else {
+				successCount++
+			}
+			
+			time.Sleep(interval)
+		}
+		
+		successRate := float64(successCount) / 50.0 * 100
+		log.Printf("✅ Success rate: %.1f%% (%d/50)", successRate, successCount)
+		
+		if successRate >= 95 {
+			log.Printf("🎯 FOUND SAFE INTERVAL: %v (%.2f req/sec)", interval, 1000.0/interval.Milliseconds())
+			break
+		}
+	}
+	
+	elapsed := time.Since(startTime)
+	
+	return TestResult{
+		TestName:              "Binary Search",
+		Duration:              elapsed,
+		TotalRequests:         rlt.totalRequests.Load(),
+		SuccessRequests:       rlt.successRequests.Load(),
+		RateLimitHits:         rlt.rateLimitHits.Load(),
+		RequestsPerSecond:     float64(rlt.totalRequests.Load()) / elapsed.Seconds(),
+		RequestsPerMinute:     float64(rlt.totalRequests.Load()) / elapsed.Minutes(),
+		RequestsPerHour:       float64(rlt.totalRequests.Load()) / elapsed.Hours(),
+		TimeToFirstRateLimit:  rlt.firstRateLimit.Sub(startTime),
+		RateLimitHeaders:      rateLimitHeaders,
+	}
+}
+
+func saveResults(results []TestResult, filename string) error {
+	data, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return err
+	}
+	
+	return os.WriteFile(filename, data, 0644)
+}
+
+func main() {
+	// Load single proxy for testing
+	proxyURL := os.Getenv("UPBIT_PROXY_1")
+	if proxyURL == "" {
+		log.Fatal("❌ UPBIT_PROXY_1 not set")
+	}
+	
+	apiURL := "https://api-manager.upbit.com/api/v1/notices"
+	
+	log.Println("🧪 UPBIT RATE LIMIT MEASUREMENT SUITE")
+	log.Println("=====================================")
+	
+	var results []TestResult
+	
+	// TEST 1: Aggressive burst
+	log.Println("\n=== STARTING TEST 1 ===")
+	test1, err := NewRateLimitTest(proxyURL, apiURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	result1 := test1.testAggressiveBurst(30 * time.Second)
+	results = append(results, result1)
+	
+	log.Println("\n⏸️  Waiting 2 minutes before next test...")
+	time.Sleep(2 * time.Minute)
+	
+	// TEST 2: Sustained load
+	log.Println("\n=== STARTING TEST 2 ===")
+	test2, err := NewRateLimitTest(proxyURL, apiURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	result2 := test2.testSustainedLoad(300*time.Millisecond, 5*time.Minute)
+	results = append(results, result2)
+	
+	log.Println("\n⏸️  Waiting 2 minutes before next test...")
+	time.Sleep(2 * time.Minute)
+	
+	// TEST 3: Binary search
+	log.Println("\n=== STARTING TEST 3 ===")
+	test3, err := NewRateLimitTest(proxyURL, apiURL)
+	if err != nil {
+		log.Fatal(err)
+	}
+	result3 := test3.testBinarySearch()
+	results = append(results, result3)
+	
+	// Save results
+	if err := saveResults(results, "rate_limit_results.json"); err != nil {
+		log.Printf("⚠️ Failed to save results: %v", err)
+	}
+	
+	// Print summary
+	log.Println("\n📊 FINAL RESULTS")
+	log.Println("================")
+	for _, r := range results {
+		log.Printf("\n%s:", r.TestName)
+		log.Printf("  Duration: %v", r.Duration)
+		log.Printf("  Total Requests: %d", r.TotalRequests)
+		log.Printf("  Success: %d (%.1f%%)", r.SuccessRequests, float64(r.SuccessRequests)/float64(r.TotalRequests)*100)
+		log.Printf("  Rate Limits: %d", r.RateLimitHits)
+		log.Printf("  Rate: %.2f req/sec | %.0f req/min | %.0f req/hour", 
+			r.RequestsPerSecond, r.RequestsPerMinute, r.RequestsPerHour)
+		
+		if r.TimeToFirstRateLimit > 0 {
+			log.Printf("  First Rate Limit: %v", r.TimeToFirstRateLimit)
+		}
+		
+		if len(r.RateLimitHeaders) > 0 {
+			log.Printf("  Rate Limit Headers:")
+			for k, v := range r.RateLimitHeaders {
+				log.Printf("    %s: %s", k, v)
+			}
+		}
+	}
+	
+	log.Println("\n✅ Results saved to rate_limit_results.json")
+}
+
+func createProxyClient(proxyURL string) (*http.Client, error) {
+	// Your existing createProxyClient implementation
+	// ... (keep your SOCKS5 proxy code)
+	return nil, nil // placeholder
+}
+🚀 Nasıl Çalıştırılır
+
+# 1. Test programını çalıştır (tek proxy ile)
+go run rate_limit_test.go
+
+# 2. Sonuçları incele
+cat rate_limit_results.json
+📊 Ne Öğreneceğiz
+Test 1 (Aggressive Burst):
+
+Kaç istekten sonra rate limit?
+Burst limiti var mı?
+Test 2 (Sustained Load):
+
+300ms interval ile kaç saat gidebiliyor?
+Gerçekten saatlik limit mi var?
+Test 3 (Binary Search):
+
+En hızlı güvenli interval ne?
+Optimal hız nedir?
+🎯 Beklenen Çıktı
+
+🎯 FOUND SAFE INTERVAL: 500ms (2 req/sec)
+✅ Success rate: 98.0% (49/50)
+
+📊 FINAL RESULTS
+  Rate Limits: 3
+  First Rate Limit: 45.2s
+  Safe Rate: 2 req/sec = 7200 req/hour
