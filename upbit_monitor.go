@@ -376,8 +376,8 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
         staggerDelay := time.Duration(proxyIndex*staggerMs) * time.Millisecond
         time.Sleep(staggerDelay)
 
-        // Fixed interval: 12s per proxy ensures <300 req/hour (safe under 400 limit)
-        interval := 12 * time.Second
+        // Fixed interval: 3s per proxy = 1200 req/hour (Upbit per-IP limit)
+        interval := 3 * time.Second
         ticker := time.NewTicker(interval)
         defer ticker.Stop()
 
@@ -442,11 +442,11 @@ func (um *UpbitMonitor) Start() {
         }
 
         // DYNAMIC CALCULATION based on proxy count
-        proxyInterval := 12.0 // seconds per proxy (fixed for 300 req/hour rate limit)
-        requestsPerHour := 3600 / proxyInterval // 300 req/hour per proxy
+        proxyInterval := 3.0 // seconds per proxy (1200 req/hour per IP - Upbit limit)
+        requestsPerHour := 3600 / proxyInterval // 1200 req/hour per proxy
         
-        // Stagger dynamically: spread 12s interval across all proxies
-        staggerMs := int((12000.0 / float64(proxyCount))) // milliseconds
+        // Stagger dynamically: spread 3s interval across all proxies
+        staggerMs := int((3000.0 / float64(proxyCount))) // milliseconds
         coverageSeconds := float64(staggerMs) / 1000.0
         checksPerSecond := 1.0 / coverageSeconds
         
