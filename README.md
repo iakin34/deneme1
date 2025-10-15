@@ -4,8 +4,8 @@ Upbit borsasında yeni listelenen coinleri otomatik algılayan ve Bitget borsas�
 
 ## 🚀 Özellikler
 
-- ⚡ **Ultra Hızlı**: 95ms coverage ile yeni listing yakalama (0.095s - 21 proxy)
-- 🔄 **21 Proxy Rotasyon**: Upbit rate limit optimizasyonu ile 24/7 monitoring (2s interval, 100% güvenli)
+- ⚡ **Ultra Hızlı**: 143ms coverage ile yeni listing yakalama (0.143s - 21 proxy)
+- 🔄 **21 Proxy Rotasyon**: Upbit rate limit optimizasyonu ile 24/7 monitoring (3s interval, 100% güvenli)
 - 🤖 **Telegram Bot Arayüzü**: Çoklu kullanıcı yönetimi ve inline keyboard UI
 - 🔐 **Güvenli Credential Yönetimi**: Şifreli API key saklama
 - 📊 **Otomatik P&L Takibi**: 5, 30, 60 dakika ve 6 saatte bir bildirim
@@ -112,7 +112,7 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
 
 # 21 SOCKS5 Proxy Sunucuları (format: username:password@ip:port)
 # Important: Use proxies from different ASN/providers for best results
-# With 21 proxies + 2s interval = 95ms coverage (0.095s)
+# With 21 proxies + 3s interval = 143ms coverage (0.143s)
 UPBIT_PROXY_1=proxy1_user:proxy1_pass@ip1:1080
 UPBIT_PROXY_2=proxy2_user:proxy2_pass@ip2:1080
 UPBIT_PROXY_3=proxy3_user:proxy3_pass@ip3:1080

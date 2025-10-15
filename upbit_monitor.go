@@ -406,9 +406,9 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
         time.Sleep(staggerDelay)
 
         // Upbit Announcements API: ~3-4 req/sec TOTAL limit (empirically tested)
-        // Using 2s interval = 1800 req/hour = 0.5 req/sec per proxy (100% safe)
-        // Total with 21 proxies: 10.5 req/sec, Coverage: 95ms (0.095s)
-        interval := time.Duration(2000) * time.Millisecond
+        // Using 3s interval = 1200 req/hour = 0.33 req/sec per proxy (100% safe)
+        // Total with 21 proxies: 7 req/sec, Coverage: 143ms (0.143s)
+        interval := time.Duration(3000) * time.Millisecond
         ticker := time.NewTicker(interval)
         defer ticker.Stop()
 
@@ -478,8 +478,8 @@ func (um *UpbitMonitor) Start() {
 
         // DYNAMIC CALCULATION based on proxy count
         // Upbit Announcements API: ~3-4 req/sec TOTAL limit (empirically tested)
-        // Using 2s interval for 95ms (0.095s) coverage with 21 proxies
-        proxyInterval := 2.0 // seconds per proxy (1800 req/hour per proxy, 100% safe)
+        // Using 3s interval for 143ms (0.143s) coverage with 21 proxies
+        proxyInterval := 3.0 // seconds per proxy (1200 req/hour per proxy, 100% safe)
         requestsPerHour := 3600 / proxyInterval // 1200 req/hour per proxy
         
         // Stagger dynamically: spread interval across all proxies
