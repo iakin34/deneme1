@@ -44,6 +44,16 @@ type CoinDetection = ListingEntry
 type UpbitDetection = ListingEntry
 type UpbitData = ListingsData
 
+type TradeExecutionLog struct {
+        Ticker               string                 `json:"ticker"`
+        UpbitDetectedAt      string                 `json:"upbit_detected_at"`
+        SavedToFileAt        string                 `json:"saved_to_file_at"`
+        UserID               int64                  `json:"user_id"`
+        BitgetOrderSentAt    string                 `json:"bitget_order_sent_at"`
+        BitgetOrderConfirmed string                 `json:"bitget_order_confirmed_at"`
+        LatencyBreakdown     map[string]interface{} `json:"latency_breakdown"`
+}
+
 type UpbitMonitor struct {
         apiURL          string
         proxies         []string
@@ -54,6 +64,9 @@ type UpbitMonitor struct {
         mu              sync.Mutex
         jsonFile        string
         onNewListing    func(symbol string) // Callback for new listings
+        executionLogFile string
+        currentLogEntry  *TradeExecutionLog
+        logMu            sync.Mutex
 }
 
 func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
@@ -78,13 +91,14 @@ func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
         }
 
         return &UpbitMonitor{
-                apiURL:        "https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=20&category=overall",
-                proxies:       proxies,
-                tickerRegex:   regexp.MustCompile(`\(([A-Z]{2,6})\)`), // Only 2-6 uppercase letters (valid tickers)
-                cachedTickers: make(map[string]bool),
-                proxyIndex:    0,
-                jsonFile:      "upbit_new.json",
-                onNewListing:  onNewListing,
+                apiURL:           "https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=20&category=overall",
+                proxies:          proxies,
+                tickerRegex:      regexp.MustCompile(`\(([A-Z]{2,6})\)`), // Only 2-6 uppercase letters (valid tickers)
+                cachedTickers:    make(map[string]bool),
+                proxyIndex:       0,
+                jsonFile:         "upbit_new.json",
+                executionLogFile: "trade_execution_log.json",
+                onNewListing:     onNewListing,
         }
 }
 
@@ -152,6 +166,9 @@ func (um *UpbitMonitor) saveToJSON(symbol string) error {
                 }
         }
 
+        // Record detection timestamp for trade log
+        detectedAt := time.Now()
+        
         now := time.Now()
         newEntry := ListingEntry{
                 Symbol:     symbol,
@@ -175,6 +192,18 @@ func (um *UpbitMonitor) saveToJSON(symbol string) error {
                 os.Remove(tempFile)
                 return fmt.Errorf("error renaming temp file: %v", err)
         }
+
+        savedAt := time.Now()
+        
+        // Initialize trade execution log entry
+        um.logMu.Lock()
+        um.currentLogEntry = &TradeExecutionLog{
+                Ticker:          symbol,
+                UpbitDetectedAt: detectedAt.Format("2006-01-02 15:04:05.000000"),
+                SavedToFileAt:   savedAt.Format("2006-01-02 15:04:05.000000"),
+                LatencyBreakdown: make(map[string]interface{}),
+        }
+        um.logMu.Unlock()
 
         log.Printf("✅ Successfully saved NEW listing %s to %s", symbol, um.jsonFile)
         return nil
@@ -467,4 +496,50 @@ func (um *UpbitMonitor) Start() {
 
         // Keep main goroutine alive
         select {}
+}
+
+// appendTradeLog appends a trade execution log entry to the JSON file
+func (um *UpbitMonitor) appendTradeLog(logEntry *TradeExecutionLog) error {
+        um.logMu.Lock()
+        defer um.logMu.Unlock()
+
+        var logs []TradeExecutionLog
+        
+        // Read existing logs if file exists
+        if _, err := os.Stat(um.executionLogFile); err == nil {
+                fileData, err := os.ReadFile(um.executionLogFile)
+                if err != nil {
+                        return fmt.Errorf("error reading execution log: %v", err)
+                }
+                if len(fileData) > 0 {
+                        json.Unmarshal(fileData, &logs)
+                }
+        }
+
+        // Append new log entry
+        logs = append(logs, *logEntry)
+
+        // Write back to file
+        jsonData, err := json.MarshalIndent(logs, "", "  ")
+        if err != nil {
+                return fmt.Errorf("error marshaling execution log: %v", err)
+        }
+
+        if err := os.WriteFile(um.executionLogFile, jsonData, 0644); err != nil {
+                return fmt.Errorf("error writing execution log: %v", err)
+        }
+
+        log.Printf("📊 Trade execution log saved for %s", logEntry.Ticker)
+        return nil
+}
+
+// GetCurrentLogEntry returns the current log entry (for use in ExecuteTrade)
+func (um *UpbitMonitor) GetCurrentLogEntry(ticker string) *TradeExecutionLog {
+        um.logMu.Lock()
+        defer um.logMu.Unlock()
+        
+        if um.currentLogEntry != nil && um.currentLogEntry.Ticker == ticker {
+                return um.currentLogEntry
+        }
+        return nil
 }

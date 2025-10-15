@@ -20,6 +20,9 @@ func main() {
                 // DIRECT execution - no file delay!
                 go telegramBot.ExecuteAutoTradeForAllUsers(symbol)
         })
+        
+        // Link monitor to bot for trade logging
+        telegramBot.SetUpbitMonitor(upbitMonitor)
 
         log.Println("✅ All systems initialized")
         log.Println("📡 Starting Upbit monitor...")

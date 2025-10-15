@@ -84,6 +84,7 @@ type TelegramBot struct {
         dbFile       string
         encryptionKey []byte
         lastProcessedSymbol string // Track last processed coin to prevent duplicates
+        upbitMonitor *UpbitMonitor // Reference to monitor for trade logging
 }
 
 // Generate encryption key from environment (required for persistence)
@@ -525,8 +526,15 @@ func (tb *TelegramBot) executeAutoTrade(user *UserData, symbol string) {
         // Send notification to user
         tb.sendMessage(user.UserID, fmt.Sprintf("🚀 Auto-trade triggered for %s\nMargin: %.2f USDT\nLeverage: %dx\nOpening long position...", tradingSymbol, user.MarginUSDT, user.Leverage))
         
+        // Record order sent timestamp
+        orderSentAt := time.Now()
+        
         // Execute long position
         result, err := bitgetAPI.OpenLongPosition(tradingSymbol, user.MarginUSDT, user.Leverage)
+        
+        // Record order confirmed timestamp
+        orderConfirmedAt := time.Now()
+        
         if err != nil {
                 log.Printf("❌ Auto-trade failed for user %d on %s: %v", user.UserID, tradingSymbol, err)
                 tb.sendMessage(user.UserID, fmt.Sprintf("❌ Auto-trade FAILED for %s: %v", tradingSymbol, err))
@@ -534,6 +542,30 @@ func (tb *TelegramBot) executeAutoTrade(user *UserData, symbol string) {
         }
 
         log.Printf("✅ Auto-trade SUCCESS for user %d on %s", user.UserID, tradingSymbol)
+        
+        // Update trade execution log with Bitget timestamps
+        if tb.upbitMonitor != nil {
+                logEntry := tb.upbitMonitor.GetCurrentLogEntry(symbol)
+                if logEntry != nil {
+                        logEntry.UserID = user.UserID
+                        logEntry.BitgetOrderSentAt = orderSentAt.Format("2006-01-02 15:04:05.000000")
+                        logEntry.BitgetOrderConfirmed = orderConfirmedAt.Format("2006-01-02 15:04:05.000000")
+                        
+                        // Calculate latencies
+                        detectedTime, _ := time.Parse("2006-01-02 15:04:05.000000", logEntry.UpbitDetectedAt)
+                        savedTime, _ := time.Parse("2006-01-02 15:04:05.000000", logEntry.SavedToFileAt)
+                        
+                        logEntry.LatencyBreakdown["detection_to_file_ms"] = savedTime.Sub(detectedTime).Milliseconds()
+                        logEntry.LatencyBreakdown["file_to_bitget_ms"] = orderSentAt.Sub(savedTime).Milliseconds()
+                        logEntry.LatencyBreakdown["bitget_response_ms"] = orderConfirmedAt.Sub(orderSentAt).Milliseconds()
+                        logEntry.LatencyBreakdown["total_execution_ms"] = orderConfirmedAt.Sub(detectedTime).Milliseconds()
+                        
+                        // Save log entry
+                        if err := tb.upbitMonitor.appendTradeLog(logEntry); err != nil {
+                                log.Printf("⚠️ Failed to save trade execution log: %v", err)
+                        }
+                }
+        }
         
         // Send enhanced notification with P&L tracking
         tb.sendPositionNotification(user.UserID, result)
@@ -1591,6 +1623,11 @@ func loadActivePositions() {
         for key, pos := range savedPositions {
                 log.Printf("📊 Restored position: %s (opened %s ago)", key, time.Since(pos.OpenTime).Round(time.Second))
         }
+}
+
+// SetUpbitMonitor sets the upbit monitor reference for trade logging
+func (tb *TelegramBot) SetUpbitMonitor(monitor *UpbitMonitor) {
+        tb.upbitMonitor = monitor
 }
 
 // InitializeTelegramBot creates and returns bot instance (called from main.go)
