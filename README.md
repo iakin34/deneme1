@@ -325,16 +325,20 @@ go build -o upbit-bitget-bot .
 # 6. Zaman senkronizasyonu kontrolü
 make checksync
 
-# 7. (Opsiyonel) Upbit ile zaman sync
+# 7. (Opsiyonel) Upbit ile zaman sync (eğer offset > 1s ise)
 make synctime
 
-# 8. Service'i başlat
+# 8. (Opsiyonel) System-wide tool kurulumu
+make install-tools
+# Artık "checksync" ve "synctime" komutlarını her yerden kullanabilirsin
+
+# 9. Service'i başlat
 systemctl start upbit-bitget-bot.service
 
-# 9. Durumu kontrol et
+# 10. Durumu kontrol et
 systemctl status upbit-bitget-bot.service
 
-# 10. Logları kontrol et (ilk 30 satır)
+# 11. Logları kontrol et (ilk 30 satır)
 tail -n 30 /var/log/upbit-bitget-bot.log
 ```
 
@@ -453,8 +457,22 @@ make synctime
 # Binary oluştur
 make build
 
+# Helper tool'ları system-wide kur (opsiyonel)
+make install-tools
+
 # Build dosyalarını temizle
 make clean
+```
+
+**System-wide Kurulum (Opsiyonel):**
+
+```bash
+# Tool'ları sistem genelinde kullanılabilir yap
+make install-tools
+
+# Artık her yerden kullanabilirsin:
+checksync    # /usr/local/bin/checksync
+synctime     # /usr/local/bin/synctime
 ```
 
 **Zaman Senkronizasyonu Detayları:**

@@ -19,7 +19,7 @@ FORMATTED_TIME=$(date -d "$SERVER_TIME" "+%Y-%m-%d %H:%M:%S")
 echo "🔧 Setting system time to: $FORMATTED_TIME"
 
 # Set system time (requires root)
-timedatectl set-ntp false
+timedatectl set-ntp false 2>/dev/null
 date -s "$SERVER_TIME"
 
 # Verify
@@ -27,4 +27,4 @@ echo ""
 echo "✅ System time synchronized!"
 echo "🕐 New system time: $(date '+%Y-%m-%d %H:%M:%S.%3N')"
 echo ""
-echo "⚠️  Note: Auto NTP sync disabled. Re-enable with: timedatectl set-ntp true"
+echo "⚠️  NTP auto-sync disabled. Re-enable with: timedatectl set-ntp true"
