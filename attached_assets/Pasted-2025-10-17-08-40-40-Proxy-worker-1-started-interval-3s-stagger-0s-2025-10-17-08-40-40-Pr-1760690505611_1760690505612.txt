@@ -1,0 +1,104 @@
+2025/10/17 08:40:40 🔄 Proxy worker #1 started (interval: 3s, stagger: 0s)
+2025/10/17 08:40:40 🔄 Proxy worker #2 started (interval: 3s, stagger: 142ms)
+2025/10/17 08:40:40 🔄 Proxy worker #3 started (interval: 3s, stagger: 284ms)
+2025/10/17 08:40:40 🔄 Proxy worker #4 started (interval: 3s, stagger: 426ms)
+2025/10/17 08:40:40 🔄 Proxy worker #5 started (interval: 3s, stagger: 568ms)
+2025/10/17 08:40:40 🔄 Proxy worker #6 started (interval: 3s, stagger: 710ms)
+2025/10/17 08:40:41 🔄 Proxy worker #7 started (interval: 3s, stagger: 852ms)
+2025/10/17 08:40:41 🔄 Proxy worker #8 started (interval: 3s, stagger: 994ms)
+2025/10/17 08:40:41 🔄 Proxy worker #9 started (interval: 3s, stagger: 1.136s)
+2025/10/17 08:40:41 🔄 Proxy worker #10 started (interval: 3s, stagger: 1.278s)
+2025/10/17 08:40:41 🔄 Proxy worker #11 started (interval: 3s, stagger: 1.42s)
+2025/10/17 08:40:41 🔄 Proxy worker #12 started (interval: 3s, stagger: 1.562s)
+2025/10/17 08:40:41 🔄 Proxy worker #13 started (interval: 3s, stagger: 1.704s)
+2025/10/17 08:40:42 🔄 Proxy worker #14 started (interval: 3s, stagger: 1.846s)
+2025/10/17 08:40:42 🔄 Proxy worker #15 started (interval: 3s, stagger: 1.988s)
+2025/10/17 08:40:42 🔄 Proxy worker #16 started (interval: 3s, stagger: 2.13s)
+2025/10/17 08:40:42 🔄 Proxy worker #17 started (interval: 3s, stagger: 2.272s)
+2025/10/17 08:40:42 🔄 Proxy worker #18 started (interval: 3s, stagger: 2.414s)
+2025/10/17 08:40:42 🔄 Proxy worker #19 started (interval: 3s, stagger: 2.556s)
+2025/10/17 08:40:42 🔄 Proxy worker #20 started (interval: 3s, stagger: 2.698s)
+2025/10/17 08:40:43 🔄 Proxy worker #21 started (interval: 3s, stagger: 2.84s)
+2025/10/17 08:40:43 🔥 Proxy #1: CHANGE DETECTED! Processing...
+2025/10/17 08:40:43 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:43 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:43 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:43 🔥 Proxy #2: CHANGE DETECTED! Processing...
+2025/10/17 08:40:43 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:43 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:43 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:43 ⚠️ Proxy #3: Unexpected status 429
+2025/10/17 08:40:43 🔥 Proxy #4: CHANGE DETECTED! Processing...
+2025/10/17 08:40:43 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:43 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:43 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:43 🔥 Proxy #5: CHANGE DETECTED! Processing...
+2025/10/17 08:40:43 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:43 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:43 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:44 ⚠️ Proxy #6: Unexpected status 429
+2025/10/17 08:40:44 ⚠️ Proxy #7: Unexpected status 429
+2025/10/17 08:40:44 🔥 Proxy #8: CHANGE DETECTED! Processing...
+2025/10/17 08:40:44 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:44 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:44 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:44 ⚠️ Proxy #9: Unexpected status 429
+2025/10/17 08:40:44 ⚠️ Proxy #10: Unexpected status 429
+2025/10/17 08:40:44 🔥 Proxy #11: CHANGE DETECTED! Processing...
+2025/10/17 08:40:44 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:44 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:44 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:44 ⚠️ Proxy #12: Unexpected status 429
+2025/10/17 08:40:44 ⚠️ Proxy #13: Unexpected status 429
+2025/10/17 08:40:45 🔥 Proxy #15: CHANGE DETECTED! Processing...
+2025/10/17 08:40:45 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:45 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:45 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:45 🔥 Proxy #16: CHANGE DETECTED! Processing...
+2025/10/17 08:40:45 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:45 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:45 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:45 ⚠️ Proxy #17: Unexpected status 429
+2025/10/17 08:40:45 ⚠️ Proxy #18: Unexpected status 429
+2025/10/17 08:40:45 🔥 Proxy #19: CHANGE DETECTED! Processing...
+2025/10/17 08:40:45 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:45 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:45 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:45 🔥 Proxy #20: CHANGE DETECTED! Processing...
+2025/10/17 08:40:45 ✅ Valid listing detected: '조라(ZORA) 신규 거래지원 안내 (KRW, BTC, USDT 마켓)' → Tickers: [ZORA]
+2025/10/17 08:40:45 ✅ Valid listing detected: '일드길드게임즈(YGG) KRW, USDT 마켓 디지털 자산 추가' → Tickers: [YGG]
+2025/10/17 08:40:46 📊 Cached tickers count: 5, Current API response: [ZORA YGG]
+2025/10/17 08:40:46 ⚠️ Proxy #21: Unexpected status 429
+2025/10/17 08:40:46 ⚠️ Proxy #14: Unexpected status 429
+2025/10/17 08:40:46 ✓ Proxy #1: No change (304)
+2025/10/17 08:40:46 ✓ Proxy #2: No change (304)
+2025/10/17 08:40:46 ⚠️ Proxy #3: Unexpected status 429
+2025/10/17 08:40:46 ✓ Proxy #4: No change (304)
+2025/10/17 08:40:46 ✓ Proxy #5: No change (304)
+^C
+root@ubuntu3:~/upbit-trade# tail -f /var/log/upbit-bitget-bot-error.log
+2025/10/17 08:41:09 ✓ Proxy #15: No change (304)
+2025/10/17 08:41:09 ✓ Proxy #16: No change (304)
+2025/10/17 08:41:09 ⚠️ Proxy #17: Unexpected status 429
+2025/10/17 08:41:09 ⚠️ Proxy #18: Unexpected status 429
+2025/10/17 08:41:09 ✓ Proxy #19: No change (304)
+2025/10/17 08:41:09 ✓ Proxy #20: No change (304)
+2025/10/17 08:41:10 ⚠️ Proxy #21: Unexpected status 429
+2025/10/17 08:41:10 ⚠️ Proxy #14: Unexpected status 429
+2025/10/17 08:41:10 ✓ Proxy #1: No change (304)
+2025/10/17 08:41:10 ✓ Proxy #2: No change (304)
+2025/10/17 08:41:10 ⚠️ Proxy #3: Unexpected status 429
+2025/10/17 08:41:10 ✓ Proxy #4: No change (304)
+2025/10/17 08:41:10 ✓ Proxy #5: No change (304)
+2025/10/17 08:41:10 ✓ Proxy #6: No change (304)
+2025/10/17 08:41:11 ⚠️ Proxy #7: Unexpected status 429
+2025/10/17 08:41:11 ✓ Proxy #8: No change (304)
+2025/10/17 08:41:11 ⚠️ Proxy #9: Unexpected status 429
+2025/10/17 08:41:11 ⚠️ Proxy #10: Unexpected status 429
+2025/10/17 08:41:11 ✓ Proxy #11: No change (304)
+2025/10/17 08:41:11 ⚠️ Proxy #12: Unexpected status 429
+2025/10/17 08:41:11 ⚠️ Proxy #13: Unexpected status 429
+2025/10/17 08:41:12 ✓ Proxy #15: No change (304)
+2025/10/17 08:41:12 ✓ Proxy #16: No change (304)
+2025/10/17 08:41:12 ⚠️ Proxy #17: Unexpected status 429
+2025/10/17 08:41:12 ⚠️ Proxy #18: Unexpected status 429
