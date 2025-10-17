@@ -59,7 +59,8 @@ type UpbitMonitor struct {
         proxies         []string
         tickerRegex     *regexp.Regexp
         cachedTickers   map[string]bool
-        cachedETag      string
+        proxyETags      map[int]string // Each proxy has its own ETag
+        etagMu          sync.RWMutex   // Separate mutex for ETag operations
         proxyIndex      int
         mu              sync.Mutex
         jsonFile        string
@@ -95,6 +96,7 @@ func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
                 proxies:          proxies,
                 tickerRegex:      regexp.MustCompile(`\(([A-Z]{2,6})\)`), // Only 2-6 uppercase letters (valid tickers)
                 cachedTickers:    make(map[string]bool),
+                proxyETags:       make(map[int]string), // Initialize ETag map for each proxy
                 proxyIndex:       0,
                 jsonFile:         "upbit_new.json",
                 executionLogFile: "trade_execution_log.json",
@@ -431,11 +433,12 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
                 req.Header.Del("Origin")
                 req.Header.Del("Referer")
                 
-                um.mu.Lock()
-                if um.cachedETag != "" {
-                        req.Header.Set("If-None-Match", um.cachedETag)
+                // Each proxy uses its own ETag for independent caching
+                um.etagMu.RLock()
+                if etag, exists := um.proxyETags[proxyIndex]; exists && etag != "" {
+                        req.Header.Set("If-None-Match", etag)
                 }
-                um.mu.Unlock()
+                um.etagMu.RUnlock()
 
                 resp, err := client.Do(req)
                 if err != nil {
@@ -447,9 +450,10 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
                 case http.StatusOK:
                         log.Printf("🔥 Proxy #%d: CHANGE DETECTED! Processing...", proxyIndex+1)
                         newETag := resp.Header.Get("ETag")
-                        um.mu.Lock()
-                        um.cachedETag = newETag
-                        um.mu.Unlock()
+                        // Save ETag for this specific proxy only
+                        um.etagMu.Lock()
+                        um.proxyETags[proxyIndex] = newETag
+                        um.etagMu.Unlock()
                         um.processAnnouncements(resp.Body)
                         resp.Body.Close()
 
