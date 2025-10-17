@@ -1,0 +1,381 @@
+package main
+
+import (
+	"crypto/tls"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+	"regexp"
+	"strings"
+	"sync"
+	"time"
+)
+
+// UpbitAnnouncement represents a single announcement from the API
+type UpbitAnnouncement struct {
+	ID        int    `json:"id"`
+	Title     string `json:"title"`
+	Body      string `json:"body"`
+	CreatedAt string `json:"created_at"`
+}
+
+// UpbitResponse represents the API response structure
+type UpbitResponse struct {
+	Success bool `json:"success"`
+	Data    struct {
+		List []UpbitAnnouncement `json:"list"`
+	} `json:"data"`
+}
+
+// TradeExecutionLog represents the execution log for a detected coin
+type TradeExecutionLog struct {
+	Symbol         string    `json:"symbol"`
+	DetectedAt     time.Time `json:"detected_at"`
+	APIResponseMs  float64   `json:"api_response_ms"`
+	ProcessingMs   float64   `json:"processing_ms"`
+	TotalLatencyMs float64   `json:"total_latency_ms"`
+	ProxyUsed      int       `json:"proxy_used"`
+}
+
+// UpbitMonitor monitors Upbit announcements for new coin listings
+type UpbitMonitor struct {
+	apiURL           string
+	proxies          []string
+	tickerRegex      *regexp.Regexp
+	cachedTickers    map[string]bool
+	proxyETags       map[int]string // ✅ Her proxy'nin kendi ETag'i
+	etagMu           sync.RWMutex   // ✅ ETag için ayrı mutex
+	mu               sync.Mutex
+	jsonFile         string
+	onNewListing     func(symbol string)
+	executionLogFile string
+	currentLogEntry  *TradeExecutionLog
+	logMu            sync.Mutex
+}
+
+// NewUpbitMonitor creates a new Upbit monitor instance
+func NewUpbitMonitor(proxies []string, onNewListing func(symbol string)) *UpbitMonitor {
+	return &UpbitMonitor{
+		apiURL:           "https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=20&category=overall",
+		proxies:          proxies,
+		tickerRegex:      regexp.MustCompile(`\(([A-Z]{2,6})\)`),
+		cachedTickers:    make(map[string]bool),
+		proxyETags:       make(map[int]string), // ✅ YENİ
+		jsonFile:         "upbit_new.json",
+		executionLogFile: "trade_execution_log.json",
+		onNewListing:     onNewListing,
+	}
+}
+
+// loadExistingData loads previously detected tickers from JSON file
+func (um *UpbitMonitor) loadExistingData() error {
+	data, err := os.ReadFile(um.jsonFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("no existing data file found (this is normal on first run)")
+		}
+		return fmt.Errorf("error reading existing data: %v", err)
+	}
+
+	var existingTickers []string
+	if err := json.Unmarshal(data, &existingTickers); err != nil {
+		return fmt.Errorf("error parsing existing data: %v", err)
+	}
+
+	um.mu.Lock()
+	for _, ticker := range existingTickers {
+		um.cachedTickers[ticker] = true
+	}
+	um.mu.Unlock()
+
+	log.Printf("📂 Loaded %d existing tickers from %s", len(existingTickers), um.jsonFile)
+	return nil
+}
+
+// saveToJSON saves detected tickers to JSON file
+func (um *UpbitMonitor) saveToJSON(tickers []string) error {
+	data, err := json.MarshalIndent(tickers, "", "  ")
+	if err != nil {
+		return fmt.Errorf("error marshaling JSON: %v", err)
+	}
+
+	if err := os.WriteFile(um.jsonFile, data, 0644); err != nil {
+		return fmt.Errorf("error writing JSON file: %v", err)
+	}
+
+	return nil
+}
+
+// saveExecutionLog saves the execution log to JSON file
+func (um *UpbitMonitor) saveExecutionLog() error {
+	um.logMu.Lock()
+	defer um.logMu.Unlock()
+
+	if um.currentLogEntry == nil {
+		return nil
+	}
+
+	data, err := json.MarshalIndent(um.currentLogEntry, "", "  ")
+	if err != nil {
+		return fmt.Errorf("error marshaling execution log: %v", err)
+	}
+
+	if err := os.WriteFile(um.executionLogFile, data, 0644); err != nil {
+		return fmt.Errorf("error writing execution log: %v", err)
+	}
+
+	log.Printf("📝 Execution log saved to %s", um.executionLogFile)
+	return nil
+}
+
+// createProxyClient creates an HTTP client with proxy configuration
+func (um *UpbitMonitor) createProxyClient(proxyURL string) (*http.Client, error) {
+	proxy, err := url.Parse(proxyURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid proxy URL: %v", err)
+	}
+
+	transport := &http.Transport{
+		Proxy: http.ProxyURL(proxy),
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 10,
+		IdleConnTimeout:     90 * time.Second,
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   10 * time.Second,
+	}, nil
+}
+
+// processAnnouncements processes the API response and detects new listings
+func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
+	var response UpbitResponse
+	if err := json.NewDecoder(body).Decode(&response); err != nil {
+		log.Printf("❌ Error decoding API response: %v", err)
+		return
+	}
+
+	if !response.Success || len(response.Data.List) == 0 {
+		return
+	}
+
+	var newlyAdded []string
+	um.mu.Lock()
+
+	for _, announcement := range response.Data.List {
+		if strings.Contains(announcement.Title, "디지털 자산 추가") {
+			matches := um.tickerRegex.FindAllStringSubmatch(announcement.Title, -1)
+			for _, match := range matches {
+				if len(match) > 1 {
+					ticker := match[1]
+					if !um.cachedTickers[ticker] {
+						newlyAdded = append(newlyAdded, ticker)
+						um.cachedTickers[ticker] = true
+						log.Printf("🆕 NEW LISTING DETECTED: %s", ticker)
+					}
+				}
+			}
+		}
+	}
+
+	if len(newlyAdded) > 0 {
+		allTickers := make([]string, 0, len(um.cachedTickers))
+		for ticker := range um.cachedTickers {
+			allTickers = append(allTickers, ticker)
+		}
+		um.mu.Unlock()
+
+		if err := um.saveToJSON(allTickers); err != nil {
+			log.Printf("❌ Error saving to JSON: %v", err)
+		} else {
+			log.Printf("💾 Saved %d tickers to %s", len(allTickers), um.jsonFile)
+		}
+
+		for _, ticker := range newlyAdded {
+			if um.onNewListing != nil {
+				um.onNewListing(ticker)
+			}
+		}
+	} else {
+		um.mu.Unlock()
+	}
+}
+
+// startProxyWorker starts a worker that polls the API using a specific proxy
+func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int) {
+	// ✅ STAGGER KALDIRILDI (main'de yapılıyor)
+
+	// ✅ Her proxy 3 saniyede bir istek (güvenli)
+	interval := time.Duration(3000) * time.Millisecond
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	log.Printf("🔄 Proxy worker #%d ready (interval: %v)", proxyIndex+1, interval)
+
+	client, err := um.createProxyClient(proxyURL)
+	if err != nil {
+		log.Printf("❌ Proxy #%d client creation failed: %v", proxyIndex+1, err)
+		return
+	}
+
+	for range ticker.C {
+		startTime := time.Now()
+
+		req, err := http.NewRequest("GET", um.apiURL, nil)
+		if err != nil {
+			log.Printf("❌ Proxy #%d: Request creation failed: %v", proxyIndex+1, err)
+			continue
+		}
+
+		req.Header.Del("Origin")
+		req.Header.Del("Referer")
+
+		// ✅ HER PROXY KENDİ ETAG'INI KULLANIR
+		um.etagMu.RLock()
+		if etag, exists := um.proxyETags[proxyIndex]; exists && etag != "" {
+			req.Header.Set("If-None-Match", etag)
+		}
+		um.etagMu.RUnlock()
+
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("❌ Proxy #%d: API request failed: %v", proxyIndex+1, err)
+			continue
+		}
+
+		apiResponseTime := time.Since(startTime).Milliseconds()
+
+		switch resp.StatusCode {
+		case http.StatusOK:
+			log.Printf("🔥 Proxy #%d: CHANGE DETECTED! Processing...", proxyIndex+1)
+
+			// ✅ YENİ ETAG'I SADECE BU PROXY İÇİN SAKLA
+			newETag := resp.Header.Get("ETag")
+			um.etagMu.Lock()
+			um.proxyETags[proxyIndex] = newETag
+			um.etagMu.Unlock()
+
+			// Log execution timing
+			um.logMu.Lock()
+			um.currentLogEntry = &TradeExecutionLog{
+				DetectedAt:    time.Now(),
+				APIResponseMs: float64(apiResponseTime),
+				ProxyUsed:     proxyIndex + 1,
+			}
+			um.logMu.Unlock()
+
+			processingStart := time.Now()
+			um.processAnnouncements(resp.Body)
+			processingTime := time.Since(processingStart).Milliseconds()
+
+			um.logMu.Lock()
+			if um.currentLogEntry != nil {
+				um.currentLogEntry.ProcessingMs = float64(processingTime)
+				um.currentLogEntry.TotalLatencyMs = float64(apiResponseTime + processingTime)
+			}
+			um.logMu.Unlock()
+
+			resp.Body.Close()
+
+			// Save execution log
+			if err := um.saveExecutionLog(); err != nil {
+				log.Printf("❌ Error saving execution log: %v", err)
+			}
+
+		case http.StatusNotModified:
+			log.Printf("✓ Proxy #%d: No change (304)", proxyIndex+1)
+			resp.Body.Close()
+
+		default:
+			log.Printf("⚠️ Proxy #%d: Unexpected status %d", proxyIndex+1, resp.StatusCode)
+			resp.Body.Close()
+		}
+	}
+}
+
+// Start begins monitoring Upbit announcements
+func (um *UpbitMonitor) Start() {
+	log.Println("🚀 Upbit Monitor Starting with OPTIMIZED PARALLEL PROXY EXECUTION...")
+
+	if err := um.loadExistingData(); err != nil {
+		log.Printf("⚠️ Warning: %v", err)
+	}
+
+	proxyCount := len(um.proxies)
+	if proxyCount == 0 {
+		log.Fatal("❌ No proxies configured! Please add UPBIT_PROXY_* to .env file")
+	}
+
+	// ✅ Her proxy 3 saniyede bir istek (güvenli)
+	proxyInterval := 3.0 // seconds
+	requestsPerHour := 3600 / proxyInterval
+
+	// ✅ Stagger: 3000ms / proxy sayısı = arayla başlat
+	staggerMs := int((proxyInterval * 1000.0 / float64(proxyCount)))
+	coverageMs := float64(staggerMs)
+
+	log.Printf("📊 OPTIMIZED PROXY CONFIGURATION:")
+	log.Printf("   • Total Proxies: %d", proxyCount)
+	log.Printf("   • Rate: %.0f req/hour per proxy (SAFE)", requestsPerHour)
+	log.Printf("   • Interval: %.1fs per proxy", proxyInterval)
+	log.Printf("   • Stagger: %dms between workers", staggerMs)
+	log.Printf("⚡ PERFORMANCE:")
+	log.Printf("   • Detection Coverage: %.0fms ✅ TARGET MET", coverageMs)
+	log.Printf("   • Expected Detection Time: %.0f-%.0fms", coverageMs*0.5, coverageMs+100)
+
+	// ✅ MAIN GOROUTINE'DE STAGGER UYGULA
+	for i, proxyURL := range um.proxies {
+		// Her proxy'yi sırayla başlat
+		go um.startProxyWorker(proxyURL, i)
+
+		// Son proxy hariç, stagger bekle
+		if i < len(um.proxies)-1 {
+			log.Printf("🚀 Proxy #%d started (next in %dms)", i+1, staggerMs)
+			time.Sleep(time.Duration(staggerMs) * time.Millisecond)
+		} else {
+			log.Printf("🚀 Proxy #%d started (FINAL)", i+1)
+		}
+	}
+
+	log.Printf("✅ All %d proxies running with %.0fms detection coverage!", proxyCount, coverageMs)
+	log.Printf("🎯 System optimized for sub-300ms detection latency")
+
+	// Keep main goroutine alive
+	select {}
+}
+
+// Main function (örnek kullanım)
+func main() {
+	// .env'den proxy'leri yükle
+	proxies := []string{
+		os.Getenv("UPBIT_PROXY_1"),
+		os.Getenv("UPBIT_PROXY_2"),
+		os.Getenv("UPBIT_PROXY_3"),
+		// ... diğer proxy'ler
+	}
+
+	// Boş proxy'leri filtrele
+	var validProxies []string
+	for _, p := range proxies {
+		if p != "" {
+			validProxies = append(validProxies, p)
+		}
+	}
+
+	// Callback fonksiyonu
+	onNewListing := func(symbol string) {
+		log.Printf("🎯 CALLBACK: New listing detected: %s", symbol)
+		// Buraya trading logic ekleyebilirsin
+	}
+
+	monitor := NewUpbitMonitor(validProxies, onNewListing)
+	monitor.Start()
+}
