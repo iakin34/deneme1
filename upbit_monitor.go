@@ -686,6 +686,21 @@ func (um *UpbitMonitor) logETagChange(proxyIndex int, oldETag, newETag string, r
                 return fmt.Errorf("error writing etag log: %v", err)
         }
 
-        log.Printf("📝 ETag change logged: Proxy #%d, %s -> %s", proxyIndex+1, oldETag[:8], newETag[:8])
+        // Safely truncate ETags for logging
+        oldETagShort := "empty"
+        if len(oldETag) >= 8 {
+                oldETagShort = oldETag[:8]
+        } else if len(oldETag) > 0 {
+                oldETagShort = oldETag
+        }
+        
+        newETagShort := "unknown"
+        if len(newETag) >= 8 {
+                newETagShort = newETag[:8]
+        } else if len(newETag) > 0 {
+                newETagShort = newETag
+        }
+        
+        log.Printf("📝 ETag change logged: Proxy #%d, %s -> %s", proxyIndex+1, oldETagShort, newETagShort)
         return nil
 }
