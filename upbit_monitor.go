@@ -425,9 +425,9 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
         time.Sleep(staggerDelay)
 
         // Upbit Announcements API: ~3-4 req/sec TOTAL limit (empirically tested)
-        // Using 6s interval = 600 req/hour = 0.167 req/sec per proxy (at TOTAL limit edge)
-        // Total with 24 proxies: 4 req/sec, Coverage: 250ms (0.250s) ⚡ FAST!
-        interval := time.Duration(6000) * time.Millisecond
+        // Using 8s interval = 450 req/hour = 0.125 req/sec per proxy (SAFE under TOTAL limit)
+        // Total with 24 proxies: 3 req/sec, Coverage: 333ms (0.333s) - PRODUCTION SAFE ✅
+        interval := time.Duration(8000) * time.Millisecond
         ticker := time.NewTicker(interval)
         defer ticker.Stop()
 
@@ -473,13 +473,15 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
                         log.Printf("🔥 Proxy #%d: CHANGE DETECTED! Processing...", proxyIndex+1)
                         newETag := resp.Header.Get("ETag")
                         
-                        // Log ETag change to etag_news.json
-                        go um.logETagChange(proxyIndex, oldETag, newETag, responseTime)
-                        
-                        // Save ETag for this specific proxy only
+                        // Save ETag for this specific proxy and log the change atomically
                         um.etagMu.Lock()
+                        oldETagValue := um.proxyETags[proxyIndex]
                         um.proxyETags[proxyIndex] = newETag
                         um.etagMu.Unlock()
+                        
+                        // Log ETag change to etag_news.json (async, with captured oldETag)
+                        go um.logETagChange(proxyIndex, oldETagValue, newETag, responseTime)
+                        
                         um.processAnnouncements(resp.Body)
                         resp.Body.Close()
 
@@ -508,9 +510,9 @@ func (um *UpbitMonitor) Start() {
 
         // DYNAMIC CALCULATION based on proxy count
         // Upbit Announcements API: ~3-4 req/sec TOTAL limit (empirically tested)
-        // Using 6s interval for 250ms (0.250s) coverage with 24 proxies (at TOTAL limit edge)
-        proxyInterval := 6.0 // seconds per proxy (600 req/hour per proxy, TOTAL: 4 req/sec)
-        requestsPerHour := 3600 / proxyInterval // 600 req/hour per proxy
+        // Using 8s interval for 333ms (0.333s) coverage with 24 proxies (SAFE PRODUCTION)
+        proxyInterval := 8.0 // seconds per proxy (450 req/hour per proxy, TOTAL: 3 req/sec)
+        requestsPerHour := 3600 / proxyInterval // 450 req/hour per proxy
         
         // Stagger dynamically: spread interval across all proxies
         staggerMs := int((proxyInterval * 1000.0 / float64(proxyCount))) // milliseconds

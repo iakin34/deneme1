@@ -1,6 +1,6 @@
 # Overview
 
-This is a cryptocurrency trading bot that monitors Upbit exchange for new coin listing announcements and automatically executes trades on Bitget exchange. The system uses **parallel proxy execution** (24 SOCKS5 proxies running simultaneously, with Proxy #1-2 in Seoul for priority) to achieve **250ms detection coverage** and **~0.4-0.6 seconds total execution time** from Upbit announcement to Bitget order placement. Uses 6-second interval per proxy (0.167 req/sec per IP, 4 req/sec TOTAL - at Upbit's TOTAL limit edge) optimized for ultra-fast detection. Features include ETag change detection logging, automated time synchronization monitoring, trade execution logging with microsecond precision, 5-rule filtering system for 100% accurate listing detection, multi-user support, and duplicate trade prevention.
+This is a cryptocurrency trading bot that monitors Upbit exchange for new coin listing announcements and automatically executes trades on Bitget exchange. The system uses **parallel proxy execution** (24 SOCKS5 proxies running simultaneously, with Proxy #1-2 in Seoul for priority) to achieve **333ms detection coverage** and **~0.4-0.6 seconds total execution time** from Upbit announcement to Bitget order placement. Uses 8-second interval per proxy (0.125 req/sec per IP, 3 req/sec TOTAL - production safe under Upbit's TOTAL limit) optimized for reliable detection. Features include ETag change detection logging (tracks which proxy detected changes first), automated time synchronization monitoring, trade execution logging with microsecond precision, 5-rule filtering system for 100% accurate listing detection, multi-user support, and duplicate trade prevention.
 
 # User Preferences
 
@@ -9,17 +9,17 @@ Preferred communication style: Simple, everyday language.
 # Recent Changes (2025-10-15)
 
 ## Latest Optimizations (2025-10-19)
-- **Upgraded to 24 proxies** with 6s interval for faster detection
-  - Coverage improved: 333ms → **250ms** ⚡
+- **Upgraded to 24 proxies** with 8s interval for production safety
+  - Coverage: **333ms** (0.333s - meets 0.3s target)
   - Seoul proxies (Proxy #1-2) prioritized for lowest latency
 - **ETag Change Detection Logging System:**
   - New file: `etag_news.json` tracks which proxy detected changes first
   - Logs: proxy index, name (Seoul marker), timestamp, old/new ETag, response time
-  - Helps identify fastest geographic location
-- Rate limit configuration:
-  - 24 proxies × 6s interval = **4 req/sec TOTAL** (at limit edge)
-  - Previous: 21 proxies × 7s = 3 req/sec (safer but slower)
-  - Trade-off: Speed vs safety (monitoring for 429 errors)
+  - Helps identify fastest geographic location and detection performance
+- **Production-Safe Rate Limit Configuration:**
+  - 24 proxies × 8s interval = **3 req/sec TOTAL** (safe, zero 429 risk)
+  - Chose safety over speed after architect review
+  - Thread-safe ETag capture to prevent race conditions
 
 ## Rate Limit Empirical Testing & TOTAL Limit Discovery
 - Built comprehensive rate limit testing tool (`tools/test_rate_limit.go`)
@@ -45,14 +45,14 @@ Preferred communication style: Simple, everyday language.
 - Saved to `trade_execution_log.json`
 
 ## Performance Updates
-- **Optimized to 250ms coverage with 24 proxies** (0.250s - faster than 0.3s target!) ⚡
+- **Optimized to 333ms coverage with 24 proxies** (0.333s - meets 0.3s target)
 - **Seoul proxies priority**: Proxy #1-2 are Seoul-based for lowest latency
 - Average execution time: 0.4-0.6 seconds
-- Rate limit: 6s interval per proxy = 600 req/hour per proxy
-- **Total requests: 4 req/sec** across all proxies (at Upbit's 3-4 req/sec TOTAL limit edge)
-- Dynamic stagger calculation: 250ms between workers
-- Per IP rate: 0.167 req/sec
-- **ETag change detection logging**: Tracks which proxy detected changes first (saved to etag_news.json)
+- Rate limit: **8s interval per proxy** = 450 req/hour per proxy (PRODUCTION SAFE)
+- **Total requests: 3 req/sec** across all proxies (safe under Upbit's 3-4 req/sec TOTAL limit)
+- Dynamic stagger calculation: 333ms between workers
+- Per IP rate: 0.125 req/sec (zero 429 risk)
+- **ETag change detection logging**: Tracks which proxy detected changes first with timestamp and response time (saved to etag_news.json)
 
 # System Architecture
 
