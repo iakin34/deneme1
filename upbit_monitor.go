@@ -54,18 +54,33 @@ type TradeExecutionLog struct {
         LatencyBreakdown     map[string]interface{} `json:"latency_breakdown"`
 }
 
+type ETagChangeLog struct {
+        ProxyIndex     int    `json:"proxy_index"`
+        ProxyName      string `json:"proxy_name"`
+        DetectedAt     string `json:"detected_at"`
+        ServerTime     string `json:"server_time"`
+        OldETag        string `json:"old_etag"`
+        NewETag        string `json:"new_etag"`
+        ResponseTimeMs int64  `json:"response_time_ms"`
+}
+
+type ETagChangeData struct {
+        Detections []ETagChangeLog `json:"detections"`
+}
+
 type UpbitMonitor struct {
-        apiURL          string
-        proxies         []string
-        tickerRegex     *regexp.Regexp
-        cachedTickers   map[string]bool
-        proxyETags      map[int]string // Each proxy has its own ETag
-        etagMu          sync.RWMutex   // Separate mutex for ETag operations
-        proxyIndex      int
-        mu              sync.Mutex
-        jsonFile        string
-        onNewListing    func(symbol string) // Callback for new listings
+        apiURL           string
+        proxies          []string
+        tickerRegex      *regexp.Regexp
+        cachedTickers    map[string]bool
+        proxyETags       map[int]string // Each proxy has its own ETag
+        etagMu           sync.RWMutex   // Separate mutex for ETag operations
+        proxyIndex       int
+        mu               sync.Mutex
+        jsonFile         string
+        onNewListing     func(symbol string) // Callback for new listings
         executionLogFile string
+        etagLogFile      string // ETag change detection log
         currentLogEntry  *TradeExecutionLog
         logMu            sync.Mutex
 }
@@ -73,7 +88,8 @@ type UpbitMonitor struct {
 func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
         var proxies []string
         
-        for i := 1; i <= 21; i++ {
+        // Load up to 24 proxies (Proxy #1-2 should be Seoul for lowest latency)
+        for i := 1; i <= 24; i++ {
                 proxyEnv := os.Getenv(fmt.Sprintf("UPBIT_PROXY_%d", i))
                 if proxyEnv != "" {
                         proxies = append(proxies, proxyEnv)
@@ -100,6 +116,7 @@ func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
                 proxyIndex:       0,
                 jsonFile:         "upbit_new.json",
                 executionLogFile: "trade_execution_log.json",
+                etagLogFile:      "etag_news.json",
                 onNewListing:     onNewListing,
         }
 }
@@ -408,9 +425,9 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
         time.Sleep(staggerDelay)
 
         // Upbit Announcements API: ~3-4 req/sec TOTAL limit (empirically tested)
-        // Using 7s interval = 514 req/hour = 0.14 req/sec per proxy (SAFE under TOTAL limit)
-        // Total with 21 proxies: 3 req/sec, Coverage: 333ms (0.333s)
-        interval := time.Duration(7000) * time.Millisecond
+        // Using 6s interval = 600 req/hour = 0.167 req/sec per proxy (at TOTAL limit edge)
+        // Total with 24 proxies: 4 req/sec, Coverage: 250ms (0.250s) ⚡ FAST!
+        interval := time.Duration(6000) * time.Millisecond
         ticker := time.NewTicker(interval)
         defer ticker.Stop()
 
@@ -423,6 +440,8 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
         }
 
         for range ticker.C {
+                requestStart := time.Now()
+                
                 req, err := http.NewRequest("GET", um.apiURL, nil)
                 if err != nil {
                         log.Printf("❌ Proxy #%d: Request creation failed: %v", proxyIndex+1, err)
@@ -435,12 +454,15 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
                 
                 // Each proxy uses its own ETag for independent caching
                 um.etagMu.RLock()
-                if etag, exists := um.proxyETags[proxyIndex]; exists && etag != "" {
-                        req.Header.Set("If-None-Match", etag)
+                oldETag := um.proxyETags[proxyIndex]
+                if oldETag != "" {
+                        req.Header.Set("If-None-Match", oldETag)
                 }
                 um.etagMu.RUnlock()
 
                 resp, err := client.Do(req)
+                responseTime := time.Since(requestStart).Milliseconds()
+                
                 if err != nil {
                         log.Printf("❌ Proxy #%d: API request failed: %v", proxyIndex+1, err)
                         continue
@@ -450,6 +472,10 @@ func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, stagge
                 case http.StatusOK:
                         log.Printf("🔥 Proxy #%d: CHANGE DETECTED! Processing...", proxyIndex+1)
                         newETag := resp.Header.Get("ETag")
+                        
+                        // Log ETag change to etag_news.json
+                        go um.logETagChange(proxyIndex, oldETag, newETag, responseTime)
+                        
                         // Save ETag for this specific proxy only
                         um.etagMu.Lock()
                         um.proxyETags[proxyIndex] = newETag
@@ -482,9 +508,9 @@ func (um *UpbitMonitor) Start() {
 
         // DYNAMIC CALCULATION based on proxy count
         // Upbit Announcements API: ~3-4 req/sec TOTAL limit (empirically tested)
-        // Using 7s interval for 333ms (0.333s) coverage with 21 proxies (TOTAL limit safe)
-        proxyInterval := 7.0 // seconds per proxy (514 req/hour per proxy, TOTAL: 3 req/sec)
-        requestsPerHour := 3600 / proxyInterval // 1200 req/hour per proxy
+        // Using 6s interval for 250ms (0.250s) coverage with 24 proxies (at TOTAL limit edge)
+        proxyInterval := 6.0 // seconds per proxy (600 req/hour per proxy, TOTAL: 4 req/sec)
+        requestsPerHour := 3600 / proxyInterval // 600 req/hour per proxy
         
         // Stagger dynamically: spread interval across all proxies
         staggerMs := int((proxyInterval * 1000.0 / float64(proxyCount))) // milliseconds
@@ -608,4 +634,56 @@ func (um *UpbitMonitor) GetServerTime() (*TimeSyncResult, error) {
                 ClockOffset:    clockOffset,
                 NetworkLatency: networkLatency,
         }, nil
+}
+
+// logETagChange logs ETag change detection events to etag_news.json
+func (um *UpbitMonitor) logETagChange(proxyIndex int, oldETag, newETag string, responseTimeMs int64) error {
+        um.logMu.Lock()
+        defer um.logMu.Unlock()
+
+        var data ETagChangeData
+        
+        // Read existing logs if file exists
+        if _, err := os.Stat(um.etagLogFile); err == nil {
+                fileData, err := os.ReadFile(um.etagLogFile)
+                if err != nil {
+                        return fmt.Errorf("error reading etag log: %v", err)
+                }
+                if len(fileData) > 0 {
+                        json.Unmarshal(fileData, &data)
+                }
+        }
+
+        // Create new log entry
+        now := time.Now()
+        proxyName := fmt.Sprintf("Proxy #%d", proxyIndex+1)
+        if proxyIndex < 2 {
+                proxyName += " (Seoul)"
+        }
+        
+        logEntry := ETagChangeLog{
+                ProxyIndex:     proxyIndex + 1,
+                ProxyName:      proxyName,
+                DetectedAt:     now.Format("2006-01-02 15:04:05.000"),
+                ServerTime:     now.UTC().Format(time.RFC3339Nano),
+                OldETag:        oldETag,
+                NewETag:        newETag,
+                ResponseTimeMs: responseTimeMs,
+        }
+
+        // Append new log entry
+        data.Detections = append(data.Detections, logEntry)
+
+        // Write back to file
+        jsonData, err := json.MarshalIndent(data, "", "  ")
+        if err != nil {
+                return fmt.Errorf("error marshaling etag log: %v", err)
+        }
+
+        if err := os.WriteFile(um.etagLogFile, jsonData, 0644); err != nil {
+                return fmt.Errorf("error writing etag log: %v", err)
+        }
+
+        log.Printf("📝 ETag change logged: Proxy #%d, %s -> %s", proxyIndex+1, oldETag[:8], newETag[:8])
+        return nil
 }
