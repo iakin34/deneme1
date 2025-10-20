@@ -1,0 +1,125 @@
+Evet, Go dosyanı inceledim (upbit_monitor.go) ve 22 proxy ile 0.3 saniyede bir sorgu atılmasına rağmen ETag değişimini tespitte 2.4 saniyeye kadar çıkan gecikelerin nedenlerini tespit ettim.
+
+Kodun tamamını dikkatlice analiz ettim ve 3 kritik performans sorunu tespit ettim. Her birini detaylı şekilde açıklıyorum, çözüm önerileriyle birlikte:
+
+---
+
+## 🧨 1. Tüm Proxy'ler Aynı ETag Değerini Paylaşıyor (Kritik Hata)
+
+### Sorun:
+
+Tüm proxy worker'lar global `um.cachedETag` değerini kullanıyor.
+um.mu.Lock()
+if um.cachedETag != "" {
+    req.Header.Set("If-None-Match", um.cachedETag)
+}
+um.mu.Unlock()
+Ve ETag değiştiğinde:
+newETag := resp.Header.Get("ETag")
+um.mu.Lock()
+um.cachedETag = newETag
+um.mu.Unlock()
+### Sonuç:
+
+* İlk proxy ETag değişimini tespit ettiğinde, cachedETag değişiyor.
+* Diğer 21 proxy henüz isteği yapmamış olsa bile, yeni ETag ile istek atıyor → 304 alıyor.
+* Böylece tespiti yalnızca bir proxy yapabiliyor, diğerleri sıfır katkı.
+
+### Bu yüzden:
+
+* Teorik coverage’in 0.143s (143ms) olsa bile,
+* Gerçekte ETag değiştiğinde sıradaki proxy’yi beklemek zorundasın.
+
+> 🔥 Yani 0.3s aralıkla çalışan 22 proxy → coverage: 6.6s
+> Bu durumda bir değişimi en erken 0s, en geç 6.6s sonra görebilirsin.
+
+---
+
+### ✅ Çözüm:
+
+Her proxy kendi `localETag` değerini tutmalı.
+
+Örnek:
+func startProxyWorker(proxyURL string, proxyIndex int, staggerMs int) {
+    localETag := ""
+    ...
+    if localETag != "" {
+        req.Header.Set("If-None-Match", localETag)
+    }
+    ...
+    if resp.StatusCode == 200 {
+        newETag := resp.Header.Get("ETag")
+        if newETag != "" && newETag != localETag {
+            // DETECTED CHANGE
+            localETag = newETag
+            processAnnouncements(...)
+        }
+    }
+}
+Böylece:
+
+* Her proxy bağımsız hareket eder
+* ETag değişiminden sonra tüm proxy’ler tek tek bu değişimi kendi zamanlamasında tespit eder
+* 0.3s x 22 = 6.6s yerine gerçekten 0.143s’lik coverage elde edersin
+
+---
+
+## ⚠️ 2. staggerMs nedeniyle ilk tespit gecikebilir
+
+Kod:
+staggerDelay := time.Duration(proxyIndex*staggerMs) * time.Millisecond
+time.Sleep(staggerDelay)
+Eğer ilk proxy 0ms sonra başlıyorsa ama ETag değişimi 2. proxy'nin sırası gelmeden oluyorsa → tespit için sıradaki proxy'yi bekliyorsun.
+
+### ✅ Çözüm:
+
+Ya staggerMs kaldır, ya da proxy başlatılınca hemen bir ilk istek at, sonra ticker başlat.
+go func() {
+    makeRequest()
+    for range ticker.C {
+        makeRequest()
+    }
+}()
+...---
+
+## ⚠️ 3. Proxy’ye özel gecikme (client latency) ölçülmüyor
+
+Her proxy'nin response_time_ms’si loglanmamış, sadece etag.json içinde görülüyor.
+
+Kodda şurayı ekle:
+start := time.Now()
+resp, err := client.Do(req)
+elapsed := time.Since(start)
+log.Printf("Proxy #%d completed request in %v", proxyIndex+1, elapsed)
+Bu sayede hangi proxy'nin yavaş olduğunu analiz edebilirsin. Belki bazı proxy'ler 500ms sürüyor, bu da genel coverage’ı etkiliyor.
+
+---
+
+## 🔁 Alternatif: Shared ETag + Delay Buffer Modeli
+
+Eğer ETag’i global olarak tutmak istersen, aşağıdaki mantığı uygula:
+// Etiket değiştiğinde, bu ETag en az 1 tam döngü boyunca diğer proxy’lere aktarılmaz
+// yani 3-6s gecikmeli güncellenir, böylece tüm proxy’ler bir değişim fırsatı yakalar
+Ama bu hacktir, önerilen: her proxy kendi ETag'ini takip etsin.
+
+---
+
+## ✨ Ekstra İyileştirme Fikri
+
+Her proxy ETag değişimini loglasın:
+if newETag != "" && newETag != localETag {
+    log.Printf("🚨 Proxy #%d: ETag changed from %s to %s at %v", proxyIndex, localETag, newETag, time.Now())
+}
+Bu, tam tespit süresini ölçmene imkân verir.
+
+---
+
+## 📌 Özetle
+
+
+| Sorun                           | Etki                              | Çözüm                                 |
+| ------------------------------- | --------------------------------- | ------------------------------------- |
+| Global cachedETag             | Yalnızca 1 proxy tespit ediyor    | Her proxy için localETag kullan     |
+| staggerMs gecikmesi           | İlk proxy geç başlarsa 0.3s kayıp | İlk isteği ticker başlamadan yap    |
+| Proxy latency ölçülmüyor        | Gecikme kaynağı bilinmiyor        | time.Since(start) logla             |
+| Gerçek coverage elde edilemiyor | 0.143s yerine 2–6s fark           | Tüm proxy'ler paralel ve izole olmalı |...
