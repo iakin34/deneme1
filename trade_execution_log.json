@@ -1,0 +1,16 @@
+[
+  {
+    "ticker": "ZORA",
+    "upbit_detected_at": "2025-10-20 08:04:34.047218",
+    "saved_to_file_at": "2025-10-20 08:04:34.047602",
+    "user_id": 625972998,
+    "bitget_order_sent_at": "2025-10-20 08:04:34.450938",
+    "bitget_order_confirmed_at": "2025-10-20 08:04:34.772046",
+    "latency_breakdown": {
+      "bitget_response_ms": 321,
+      "detection_to_file_ms": 0,
+      "file_to_bitget_ms": 403,
+      "total_execution_ms": 724
+    }
+  }
+]

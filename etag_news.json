@@ -1,0 +1,112 @@
+{
+  "detections": [
+    {
+      "proxy_index": 1,
+      "proxy_name": "Proxy #1 (Seoul)",
+      "detected_at": "2025-10-20 08:04:34.030",
+      "server_time": "2025-10-20T08:04:34.030050495Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1157
+    },
+    {
+      "proxy_index": 2,
+      "proxy_name": "Proxy #2 (Seoul)",
+      "detected_at": "2025-10-20 08:04:34.387",
+      "server_time": "2025-10-20T08:04:34.387533583Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1183
+    },
+    {
+      "proxy_index": 3,
+      "proxy_name": "Proxy #3",
+      "detected_at": "2025-10-20 08:04:34.633",
+      "server_time": "2025-10-20T08:04:34.633602792Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1096
+    },
+    {
+      "proxy_index": 4,
+      "proxy_name": "Proxy #4",
+      "detected_at": "2025-10-20 08:04:34.963",
+      "server_time": "2025-10-20T08:04:34.963792679Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1093
+    },
+    {
+      "proxy_index": 5,
+      "proxy_name": "Proxy #5",
+      "detected_at": "2025-10-20 08:04:35.306",
+      "server_time": "2025-10-20T08:04:35.306117037Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1098
+    },
+    {
+      "proxy_index": 6,
+      "proxy_name": "Proxy #6",
+      "detected_at": "2025-10-20 08:04:35.649",
+      "server_time": "2025-10-20T08:04:35.649287735Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1110
+    },
+    {
+      "proxy_index": 7,
+      "proxy_name": "Proxy #7",
+      "detected_at": "2025-10-20 08:04:35.978",
+      "server_time": "2025-10-20T08:04:35.978669163Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1108
+    },
+    {
+      "proxy_index": 8,
+      "proxy_name": "Proxy #8",
+      "detected_at": "2025-10-20 08:04:36.302",
+      "server_time": "2025-10-20T08:04:36.302308631Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1099
+    },
+    {
+      "proxy_index": 9,
+      "proxy_name": "Proxy #9",
+      "detected_at": "2025-10-20 08:04:36.693",
+      "server_time": "2025-10-20T08:04:36.693754388Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1149
+    },
+    {
+      "proxy_index": 10,
+      "proxy_name": "Proxy #10",
+      "detected_at": "2025-10-20 08:04:36.978",
+      "server_time": "2025-10-20T08:04:36.978717006Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1110
+    },
+    {
+      "proxy_index": 11,
+      "proxy_name": "Proxy #11",
+      "detected_at": "2025-10-20 08:04:37.345",
+      "server_time": "2025-10-20T08:04:37.345981904Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1144
+    },
+    {
+      "proxy_index": 12,
+      "proxy_name": "Proxy #12",
+      "detected_at": "2025-10-20 08:04:37.672",
+      "server_time": "2025-10-20T08:04:37.672835292Z",
+      "old_etag": "",
+      "new_etag": "W/\"0a3c101fc2767be593c498e69ff2a8dee\"",
+      "response_time_ms": 1139
+    }
+  ]
+}
