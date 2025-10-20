@@ -1,6 +1,6 @@
 # Overview
 
-This is a cryptocurrency trading bot that monitors Upbit exchange for new coin listing announcements and automatically executes trades on Bitget exchange. The system uses **parallel proxy execution** (12 SOCKS5 proxies running simultaneously) to achieve **333ms detection coverage** and **~0.4-0.6 seconds total execution time** from Upbit announcement to Bitget order placement. Uses 4-second interval per proxy (0.25 req/sec per IP, 3 req/sec TOTAL - production safe under Upbit's TOTAL limit) optimized for fast detection. Features include ETag change detection logging (tracks which proxy detected changes first), automated time synchronization monitoring, trade execution logging with microsecond precision, 5-rule filtering system for 100% accurate listing detection, multi-user support, and duplicate trade prevention.
+This is a cryptocurrency trading bot that monitors Upbit exchange for new coin listing announcements and automatically executes trades on Bitget exchange. The system uses **Random Proxy Rotation** with 22 SOCKS5 proxies to achieve **sub-second detection** while avoiding rate limits. Current configuration: single ticker checks every 1000ms (1 req/sec), randomly selecting from 22-proxy pool. Auto-blacklist system (30s timeout) handles rate-limited proxies. Target: 300-500ms interval for ~0.3-0.5s detection (pending Upbit rate limit discovery). Features include ETag change detection logging, automated time synchronization monitoring, trade execution logging with microsecond precision, 5-rule filtering system for 100% accurate listing detection, multi-user support, and duplicate trade prevention.
 
 # User Preferences
 
@@ -8,23 +8,36 @@ Preferred communication style: Simple, everyday language.
 
 # Recent Changes (2025-10-15)
 
-## Latest Optimizations (2025-10-20)
-- **Optimized to 12 proxies with 4s interval for 333ms coverage**
-  - Coverage: **333ms** (0.333s - meets 0.3s target) ✅
-  - Average detection time: **1.5-2 seconds** (worst case: 4s)
-  - Previous config (8s interval) had 10s worst-case detection - unacceptable for fast trading
-- **ETag Change Detection Logging System:**
-  - New file: `etag_news.json` tracks which proxy detected changes first
+## Latest Architecture Change: Random Proxy Rotation (2025-10-20)
+- **MAJOR REFACTOR: Cycle-based → Random Proxy Rotation**
+  - **OLD**: All proxies checked in parallel every cycle (complexity, rate limit issues)
+  - **NEW**: Single ticker, picks random proxy each tick (simple, efficient)
+  - Configurable via `.env`: `UPBIT_CHECK_INTERVAL_MS` (default: 1000ms)
+  - **Current**: 1 req/sec (1000ms interval) - testing Upbit's real rate limit
+  - **Target**: 300-500ms interval (~0.3-0.5s detection) once limit discovered
+
+- **Auto-Blacklist System:**
+  - Proxy receiving 429 → Auto-blacklisted for 30 seconds
+  - System skips blacklisted proxies, continues with available pool
+  - Auto-recovery: Expired blacklists removed automatically
+  - Handles temporary throttling gracefully
+
+- **Rate Limit Discovery (Ongoing):**
+  - Initial test: 300ms (3.33 req/sec) → All proxies 429 ❌
+  - Current: 1000ms (1 req/sec) → Still 429 (temporary throttle from previous bombardment)
+  - **Next**: Wait 1 hour, test with 2-3s interval, gradually decrease
+  - **Goal**: Find stable interval for 300-500ms coverage
+
+- **Performance Analysis:**
+  - Proxy response times: 450-1200ms (geographic variance)
+  - Best proxy (Proxy #12): ~450ms consistently
+  - Worst case: ~1200ms
+  - With 300-500ms interval + fast proxies (Seoul/nearby) → **~0.3-0.6s total detection** ✅
+
+- **ETag Change Detection Logging:**
+  - File: `etag_news.json` tracks which proxy detected changes first
   - Logs: proxy index, name, timestamp, old/new ETag, response time
-  - Helps identify fastest geographic location and detection performance
-- **Production-Safe Rate Limit Configuration:**
-  - 12 proxies × 4s interval = **3 req/sec TOTAL** (safe, zero 429 risk)
-  - Per proxy: 0.25 req/sec (900 req/hour)
-  - Thread-safe ETag capture to prevent race conditions
-- **Cloudflare Blocking Issue:**
-  - Seoul AWS datacenter proxies (Proxy #1-2) blocked with 403 errors
-  - Cloudflare bot detection flags datacenter IPs
-  - Solution: Need residential IPs or disable Seoul proxies temporarily
+  - Helps identify fastest geographic locations
 
 ## Rate Limit Empirical Testing & TOTAL Limit Discovery
 - Built comprehensive rate limit testing tool (`tools/test_rate_limit.go`)
@@ -49,15 +62,15 @@ Preferred communication style: Simple, everyday language.
 - Latency breakdown per stage
 - Saved to `trade_execution_log.json`
 
-## Performance Updates
-- **Optimized to 333ms coverage with 12 proxies** (0.333s - meets 0.3s target) ✅
-- **Detection speed**: Average 1.5-2s, worst case 4s (previous: 10s unacceptable)
-- Average execution time: 0.4-0.6 seconds
-- Rate limit: **4s interval per proxy** = 900 req/hour per proxy (PRODUCTION SAFE)
-- **Total requests: 3 req/sec** across all proxies (safe under Upbit's 3-4 req/sec TOTAL limit)
-- Dynamic stagger calculation: 333ms between workers
-- Per IP rate: 0.25 req/sec (zero 429 risk)
-- **ETag change detection logging**: Tracks which proxy detected changes first with timestamp and response time (saved to etag_news.json)
+## Performance Targets
+- **Current Configuration**: 1000ms interval (1 req/sec, conservative for testing)
+- **Target Configuration**: 300-500ms interval for sub-second detection
+- **Detection Formula**: `interval + proxy_response_time = total_detection_time`
+  - Example: 300ms interval + 450ms proxy (Seoul) = **~750ms detection** ✅
+  - Example: 500ms interval + 450ms proxy = **~950ms detection** ✅
+- **Rate Limit**: To be discovered through empirical testing (currently testing)
+- **Proxy Quality**: Seoul/nearby location proxies critical (100-500ms response)
+- **ETag change detection logging**: Tracks which proxy detected changes first (saved to etag_news.json)
 
 # System Architecture
 
@@ -65,13 +78,14 @@ Preferred communication style: Simple, everyday language.
 
 ### 1. Listing Detection System
 - **Problem**: Need to detect new cryptocurrency listings on Upbit exchange in real-time without hitting rate limits
-- **Solution**: Advanced multi-layer filtering with **parallel proxy execution**
-  - **Parallel proxy workers**: 12 SOCKS5 proxies running simultaneously in separate goroutines
-  - **Staggered execution**: 333ms delay between workers (dynamically calculated)
-  - **Interval**: 4 seconds per proxy (900 req/hour per proxy)
-  - **Coverage**: 333ms detection window (0.333s, 3 req/sec total across all proxies)
-  - **Detection speed**: Average 1.5-2s, worst case 4s
-  - **Rate compliance**: 0.25 req/sec per IP (well under Upbit's TOTAL 3-4 req/sec limit)
+- **Solution**: Random Proxy Rotation with configurable interval
+  - **Architecture**: Single ticker, random proxy selection each tick
+  - **Proxy Pool**: 22 SOCKS5 proxies rotating randomly
+  - **Interval**: Configurable via `UPBIT_CHECK_INTERVAL_MS` env variable
+  - **Current**: 1000ms (1 req/sec) - conservative during rate limit testing
+  - **Target**: 300-500ms for sub-second detection
+  - **Auto-Blacklist**: 429 errors → 30s blacklist, auto-recovery
+  - **Coverage**: Equals interval (e.g., 300ms interval = 300ms between checks)
   - **ETag optimization**: Prevents redundant data transfer with 304 Not Modified responses
   - **5-Rule Filtering System** (prevents false positives):
     1. **Unicode Normalization**: Handles spacing variations (거래지원 = 거래 지원)
