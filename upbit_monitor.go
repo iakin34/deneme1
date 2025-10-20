@@ -497,7 +497,7 @@ func (um *UpbitMonitor) checkProxy(proxyURL string, proxyIndex int) {
 }
 
 func (um *UpbitMonitor) Start() {
-        log.Println("🚀 Upbit Monitor Starting with INTELLIGENT PROXY POOL...")
+        log.Println("🚀 Upbit Monitor Starting with CONCURRENT CONTINUOUS CHECKING...")
 
         if err := um.loadExistingData(); err != nil {
                 log.Printf("⚠️ Warning: %v", err)
@@ -508,102 +508,84 @@ func (um *UpbitMonitor) Start() {
                 log.Fatal("❌ No proxies configured! Please add UPBIT_PROXY_* to .env file")
         }
 
-        // INTELLIGENT PROXY POOL CONFIGURATION
-        // Strategy: Shuffle all proxies every cycle, use each proxy once per cycle
-        // Cycle duration: ~1 second (50ms stagger × 22 proxies = 1.1s)
-        // Coverage: 50ms between each request
-        staggerMs := 50 // milliseconds between each proxy request
-        cycleSeconds := float64(proxyCount*staggerMs) / 1000.0
-        checksPerSecond := float64(proxyCount) / cycleSeconds
-
-        log.Printf("📊 INTELLIGENT PROXY POOL CONFIGURATION:")
+        // CONCURRENT CONTINUOUS CHECKING CONFIGURATION
+        // Strategy: Each proxy runs independently with its own ticker
+        // No cycles - continuous parallel checking for SUB-SECOND detection
+        checkIntervalMs := 300 // default: 300ms
+        if envInterval := os.Getenv("UPBIT_CHECK_INTERVAL_MS"); envInterval != "" {
+                if interval, err := time.ParseDuration(envInterval + "ms"); err == nil {
+                        checkIntervalMs = int(interval.Milliseconds())
+                }
+        }
+        
+        // Calculate theoretical coverage
+        coverageMs := float64(checkIntervalMs) / float64(proxyCount)
+        checksPerSecond := float64(proxyCount) * (1000.0 / float64(checkIntervalMs))
+        
+        log.Printf("📊 CONCURRENT CONTINUOUS CHECKING CONFIGURATION:")
         log.Printf("   • Total Proxies: %d", proxyCount)
-        log.Printf("   • Stagger: %dms between proxies", staggerMs)
-        log.Printf("   • Cycle Duration: %.2fs (all proxies checked once)", cycleSeconds)
+        log.Printf("   • Check Interval: %dms per proxy", checkIntervalMs)
         log.Printf("   • Blacklist: 30s timeout for rate-limited proxies")
-        log.Printf("⚡ PERFORMANCE:")
-        log.Printf("   • Coverage: %dms between requests", staggerMs)
+        log.Printf("⚡ PERFORMANCE (Theoretical):")
+        log.Printf("   • Coverage: %.1fms between requests", coverageMs)
         log.Printf("   • Speed: ~%.1f checks/second", checksPerSecond)
-        log.Printf("   • Random shuffle every cycle (unpredictable pattern)")
+        log.Printf("   • Detection Target: <300ms (proxy-independent)")
+        log.Printf("🎯 STRATEGY:")
+        log.Printf("   • Each proxy runs INDEPENDENTLY (no waiting)")
+        log.Printf("   • Random stagger start (0-%dms)", checkIntervalMs)
+        log.Printf("   • Continuous checking (no cycles)")
 
         rand.Seed(time.Now().UnixNano())
 
-        // Continuous cycle loop
-        for {
-                // Get available (non-blacklisted) proxies
-                availableIndices := um.getAvailableProxies()
+        // Launch independent workers for each proxy
+        for i, proxyURL := range um.proxies {
+                // Random initial stagger: 0 to checkIntervalMs
+                initialStagger := time.Duration(rand.Intn(checkIntervalMs)) * time.Millisecond
+                go um.startContinuousProxyWorker(proxyURL, i, checkIntervalMs, initialStagger)
                 
-                if len(availableIndices) == 0 {
-                        log.Printf("⚠️ All proxies blacklisted! Waiting 5s...")
-                        time.Sleep(5 * time.Second)
-                        continue
-                }
-
-                // SHUFFLE proxies for this cycle (different order every time)
-                rand.Shuffle(len(availableIndices), func(i, j int) {
-                        availableIndices[i], availableIndices[j] = availableIndices[j], availableIndices[i]
-                })
-
-                log.Printf("🎲 New cycle: %d available proxies, first 5: #%d, #%d, #%d, #%d, #%d", 
-                        len(availableIndices),
-                        availableIndices[0]+1, 
-                        availableIndices[min(1, len(availableIndices)-1)]+1,
-                        availableIndices[min(2, len(availableIndices)-1)]+1,
-                        availableIndices[min(3, len(availableIndices)-1)]+1,
-                        availableIndices[min(4, len(availableIndices)-1)]+1)
-
-                // Launch all proxies in parallel with stagger
-                for i, proxyIndex := range availableIndices {
-                        proxyURL := um.proxies[proxyIndex]
-                        delay := time.Duration(i*staggerMs) * time.Millisecond
-                        go um.checkProxyWithDelay(proxyURL, proxyIndex, delay)
-                }
-
-                // Wait for cycle to complete before starting next cycle
-                cycleDuration := time.Duration(len(availableIndices)*staggerMs) * time.Millisecond
-                time.Sleep(cycleDuration)
+                log.Printf("✅ Proxy #%d worker started (stagger: %dms)", i+1, initialStagger.Milliseconds())
         }
+
+        // Keep main goroutine alive
+        select {}
 }
 
-// Helper function for min
-func min(a, b int) int {
-        if a < b {
-                return a
-        }
-        return b
-}
-
-// getAvailableProxies returns indices of proxies that are not blacklisted
-func (um *UpbitMonitor) getAvailableProxies() []int {
-        um.blacklistMu.RLock()
-        defer um.blacklistMu.RUnlock()
-
-        now := time.Now()
-        var available []int
-
-        for i := range um.proxies {
-                expireTime, isBlacklisted := um.proxyBlacklist[i]
-                if !isBlacklisted || now.After(expireTime) {
-                        // Not blacklisted or blacklist expired
-                        if isBlacklisted && now.After(expireTime) {
-                                // Remove expired blacklist entry
-                                um.blacklistMu.RUnlock()
+// startContinuousProxyWorker runs continuous checks for a single proxy
+func (um *UpbitMonitor) startContinuousProxyWorker(proxyURL string, proxyIndex int, intervalMs int, initialStagger time.Duration) {
+        // Initial random stagger to spread requests
+        time.Sleep(initialStagger)
+        
+        ticker := time.NewTicker(time.Duration(intervalMs) * time.Millisecond)
+        defer ticker.Stop()
+        
+        log.Printf("🔄 Proxy #%d: Continuous worker active (interval: %dms)", proxyIndex+1, intervalMs)
+        
+        for {
+                // Check if proxy is blacklisted
+                um.blacklistMu.RLock()
+                expireTime, isBlacklisted := um.proxyBlacklist[proxyIndex]
+                um.blacklistMu.RUnlock()
+                
+                if isBlacklisted {
+                        if time.Now().Before(expireTime) {
+                                // Still blacklisted, skip this check
+                                <-ticker.C
+                                continue
+                        } else {
+                                // Blacklist expired, remove it
                                 um.blacklistMu.Lock()
-                                delete(um.proxyBlacklist, i)
+                                delete(um.proxyBlacklist, proxyIndex)
                                 um.blacklistMu.Unlock()
-                                um.blacklistMu.RLock()
+                                log.Printf("✅ Proxy #%d: Blacklist expired, resuming checks", proxyIndex+1)
                         }
-                        available = append(available, i)
                 }
+                
+                // Perform check
+                um.checkProxy(proxyURL, proxyIndex)
+                
+                // Wait for next interval
+                <-ticker.C
         }
-
-        return available
-}
-
-// checkProxyWithDelay checks a single proxy after a delay
-func (um *UpbitMonitor) checkProxyWithDelay(proxyURL string, proxyIndex int, delay time.Duration) {
-        time.Sleep(delay)
-        um.checkProxy(proxyURL, proxyIndex)
 }
 
 // appendTradeLog appends a trade execution log entry to the JSON file
