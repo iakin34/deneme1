@@ -497,7 +497,7 @@ func (um *UpbitMonitor) checkProxy(proxyURL string, proxyIndex int) {
 }
 
 func (um *UpbitMonitor) Start() {
-        log.Println("🚀 Upbit Monitor Starting with CONCURRENT CONTINUOUS CHECKING...")
+        log.Println("🚀 Upbit Monitor Starting with RANDOM PROXY ROTATION...")
 
         if err := um.loadExistingData(); err != nil {
                 log.Printf("⚠️ Warning: %v", err)
@@ -508,9 +508,9 @@ func (um *UpbitMonitor) Start() {
                 log.Fatal("❌ No proxies configured! Please add UPBIT_PROXY_* to .env file")
         }
 
-        // CONCURRENT CONTINUOUS CHECKING CONFIGURATION
-        // Strategy: Each proxy runs independently with its own ticker
-        // No cycles - continuous parallel checking for SUB-SECOND detection
+        // RANDOM PROXY ROTATION CONFIGURATION
+        // Strategy: Single ticker, each tick picks random available proxy
+        // TOTAL request rate = 1 / interval (NOT proxy_count / interval)
         checkIntervalMs := 300 // default: 300ms
         if envInterval := os.Getenv("UPBIT_CHECK_INTERVAL_MS"); envInterval != "" {
                 if interval, err := time.ParseDuration(envInterval + "ms"); err == nil {
@@ -518,74 +518,76 @@ func (um *UpbitMonitor) Start() {
                 }
         }
         
-        // Calculate theoretical coverage
-        coverageMs := float64(checkIntervalMs) / float64(proxyCount)
-        checksPerSecond := float64(proxyCount) * (1000.0 / float64(checkIntervalMs))
+        // Calculate ACTUAL performance
+        checksPerSecond := 1000.0 / float64(checkIntervalMs)
         
-        log.Printf("📊 CONCURRENT CONTINUOUS CHECKING CONFIGURATION:")
-        log.Printf("   • Total Proxies: %d", proxyCount)
-        log.Printf("   • Check Interval: %dms per proxy", checkIntervalMs)
+        log.Printf("📊 RANDOM PROXY ROTATION CONFIGURATION:")
+        log.Printf("   • Total Proxies: %d (rotating pool)", proxyCount)
+        log.Printf("   • Check Interval: %dms (TOTAL, not per proxy)", checkIntervalMs)
         log.Printf("   • Blacklist: 30s timeout for rate-limited proxies")
-        log.Printf("⚡ PERFORMANCE (Theoretical):")
-        log.Printf("   • Coverage: %.1fms between requests", coverageMs)
-        log.Printf("   • Speed: ~%.1f checks/second", checksPerSecond)
-        log.Printf("   • Detection Target: <300ms (proxy-independent)")
+        log.Printf("⚡ PERFORMANCE:")
+        log.Printf("   • Coverage: %dms between requests", checkIntervalMs)
+        log.Printf("   • TOTAL Rate: %.2f req/sec (SAFE under Upbit's 3-4 req/sec limit)", checksPerSecond)
+        log.Printf("   • Detection Target: ~%dms", checkIntervalMs)
         log.Printf("🎯 STRATEGY:")
-        log.Printf("   • Each proxy runs INDEPENDENTLY (no waiting)")
-        log.Printf("   • Random stagger start (0-%dms)", checkIntervalMs)
-        log.Printf("   • Continuous checking (no cycles)")
+        log.Printf("   • Single ticker: 1 request every %dms", checkIntervalMs)
+        log.Printf("   • Random proxy selection each tick")
+        log.Printf("   • Auto-skip blacklisted proxies")
 
         rand.Seed(time.Now().UnixNano())
 
-        // Launch independent workers for each proxy
-        for i, proxyURL := range um.proxies {
-                // Random initial stagger: 0 to checkIntervalMs
-                initialStagger := time.Duration(rand.Intn(checkIntervalMs)) * time.Millisecond
-                go um.startContinuousProxyWorker(proxyURL, i, checkIntervalMs, initialStagger)
-                
-                log.Printf("✅ Proxy #%d worker started (stagger: %dms)", i+1, initialStagger.Milliseconds())
-        }
+        // Single ticker for all requests
+        ticker := time.NewTicker(time.Duration(checkIntervalMs) * time.Millisecond)
+        defer ticker.Stop()
 
-        // Keep main goroutine alive
-        select {}
+        log.Println("🚀 Random proxy rotation started!")
+
+        for range ticker.C {
+                // Get available (non-blacklisted) proxies
+                availableIndices := um.getAvailableProxies()
+                
+                if len(availableIndices) == 0 {
+                        log.Printf("⚠️ All proxies blacklisted! Skipping this tick...")
+                        continue
+                }
+
+                // Pick random proxy from available pool
+                randomIndex := availableIndices[rand.Intn(len(availableIndices))]
+                proxyURL := um.proxies[randomIndex]
+                
+                // Perform check with selected proxy
+                um.checkProxy(proxyURL, randomIndex)
+        }
 }
 
-// startContinuousProxyWorker runs continuous checks for a single proxy
-func (um *UpbitMonitor) startContinuousProxyWorker(proxyURL string, proxyIndex int, intervalMs int, initialStagger time.Duration) {
-        // Initial random stagger to spread requests
-        time.Sleep(initialStagger)
-        
-        ticker := time.NewTicker(time.Duration(intervalMs) * time.Millisecond)
-        defer ticker.Stop()
-        
-        log.Printf("🔄 Proxy #%d: Continuous worker active (interval: %dms)", proxyIndex+1, intervalMs)
-        
-        for {
-                // Check if proxy is blacklisted
-                um.blacklistMu.RLock()
-                expireTime, isBlacklisted := um.proxyBlacklist[proxyIndex]
-                um.blacklistMu.RUnlock()
-                
-                if isBlacklisted {
-                        if time.Now().Before(expireTime) {
-                                // Still blacklisted, skip this check
-                                <-ticker.C
-                                continue
-                        } else {
-                                // Blacklist expired, remove it
-                                um.blacklistMu.Lock()
-                                delete(um.proxyBlacklist, proxyIndex)
-                                um.blacklistMu.Unlock()
-                                log.Printf("✅ Proxy #%d: Blacklist expired, resuming checks", proxyIndex+1)
-                        }
+// getAvailableProxies returns indices of proxies that are not blacklisted
+func (um *UpbitMonitor) getAvailableProxies() []int {
+        um.blacklistMu.Lock()
+        defer um.blacklistMu.Unlock()
+
+        now := time.Now()
+        var available []int
+        var expired []int
+
+        // First pass: collect available and expired
+        for i := range um.proxies {
+                expireTime, isBlacklisted := um.proxyBlacklist[i]
+                if !isBlacklisted {
+                        available = append(available, i)
+                } else if now.After(expireTime) {
+                        // Blacklist expired
+                        expired = append(expired, i)
+                        available = append(available, i)
                 }
-                
-                // Perform check
-                um.checkProxy(proxyURL, proxyIndex)
-                
-                // Wait for next interval
-                <-ticker.C
         }
+
+        // Clean up expired blacklist entries
+        for _, i := range expired {
+                delete(um.proxyBlacklist, i)
+                log.Printf("✅ Proxy #%d: Blacklist expired, back in rotation", i+1)
+        }
+
+        return available
 }
 
 // appendTradeLog appends a trade execution log entry to the JSON file
