@@ -84,6 +84,9 @@ type UpbitMonitor struct {
         etagLogFile      string // ETag change detection log
         currentLogEntry  *TradeExecutionLog
         logMu            sync.Mutex
+        // Intelligent Proxy Pool (Blacklist for rate-limited proxies)
+        proxyBlacklist   map[int]time.Time // proxy index -> blacklist expire time
+        blacklistMu      sync.RWMutex
 }
 
 func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
@@ -117,6 +120,7 @@ func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
                 proxyIndex:       0,
                 jsonFile:         "upbit_new.json",
                 executionLogFile: "trade_execution_log.json",
+                proxyBlacklist:   make(map[int]time.Time), // Initialize blacklist
                 etagLogFile:      "etag_news.json",
                 onNewListing:     onNewListing,
         }
@@ -420,86 +424,81 @@ func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
         log.Printf("📊 Cached tickers count: %d, Current API response: %v", len(um.cachedTickers), newTickersList)
 }
 
-func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, totalStaggerMs int) {
-        // Use the provided totalStaggerMs (includes randomization & jitter)
-        staggerDelay := time.Duration(totalStaggerMs) * time.Millisecond
-        time.Sleep(staggerDelay)
-
-        // Upbit Announcements API: ~3-4 req/sec TOTAL limit (empirically tested)
-        // Using 4s interval = 900 req/hour = 0.25 req/sec per proxy (SAFE under TOTAL limit)
-        // Total with 12 proxies: 3 req/sec, Coverage: 333ms (0.333s) - PRODUCTION SAFE ✅
-        interval := time.Duration(4000) * time.Millisecond
-        ticker := time.NewTicker(interval)
-        defer ticker.Stop()
-
-        log.Printf("🔄 Proxy worker #%d started (interval: %v, stagger: %v)", proxyIndex+1, interval, staggerDelay)
-
+// checkProxy performs a single API check with one proxy
+func (um *UpbitMonitor) checkProxy(proxyURL string, proxyIndex int) {
         client, err := um.createProxyClient(proxyURL)
         if err != nil {
-                log.Printf("❌ Proxy #%d client creation failed: %v", proxyIndex+1, err)
+                log.Printf("❌ Proxy #%d: Client creation failed: %v", proxyIndex+1, err)
                 return
         }
 
-        for range ticker.C {
-                requestStart := time.Now()
+        requestStart := time.Now()
+        
+        req, err := http.NewRequest("GET", um.apiURL, nil)
+        if err != nil {
+                log.Printf("❌ Proxy #%d: Request creation failed: %v", proxyIndex+1, err)
+                return
+        }
+
+        // CRITICAL: Remove Origin header to avoid 1 req/10s limit
+        req.Header.Del("Origin")
+        req.Header.Del("Referer")
+        
+        // Each proxy uses its own ETag for independent caching
+        um.etagMu.RLock()
+        oldETag := um.proxyETags[proxyIndex]
+        if oldETag != "" {
+                req.Header.Set("If-None-Match", oldETag)
+        }
+        um.etagMu.RUnlock()
+
+        resp, err := client.Do(req)
+        responseTime := time.Since(requestStart).Milliseconds()
+        
+        if err != nil {
+                log.Printf("❌ Proxy #%d: API request failed: %v", proxyIndex+1, err)
+                return
+        }
+
+        switch resp.StatusCode {
+        case http.StatusOK:
+                log.Printf("🔥 Proxy #%d: CHANGE DETECTED! Processing...", proxyIndex+1)
+                newETag := resp.Header.Get("ETag")
                 
-                req, err := http.NewRequest("GET", um.apiURL, nil)
-                if err != nil {
-                        log.Printf("❌ Proxy #%d: Request creation failed: %v", proxyIndex+1, err)
-                        continue
-                }
-
-                // CRITICAL: Remove Origin header to avoid 1 req/10s limit
-                req.Header.Del("Origin")
-                req.Header.Del("Referer")
+                // Save ETag for this specific proxy and log the change atomically
+                um.etagMu.Lock()
+                oldETagValue := um.proxyETags[proxyIndex]
+                um.proxyETags[proxyIndex] = newETag
+                um.etagMu.Unlock()
                 
-                // Each proxy uses its own ETag for independent caching
-                um.etagMu.RLock()
-                oldETag := um.proxyETags[proxyIndex]
-                if oldETag != "" {
-                        req.Header.Set("If-None-Match", oldETag)
-                }
-                um.etagMu.RUnlock()
-
-                resp, err := client.Do(req)
-                responseTime := time.Since(requestStart).Milliseconds()
+                // Log ETag change to etag_news.json (async, with captured oldETag)
+                go um.logETagChange(proxyIndex, oldETagValue, newETag, responseTime)
                 
-                if err != nil {
-                        log.Printf("❌ Proxy #%d: API request failed: %v", proxyIndex+1, err)
-                        continue
-                }
+                um.processAnnouncements(resp.Body)
+                resp.Body.Close()
 
-                switch resp.StatusCode {
-                case http.StatusOK:
-                        log.Printf("🔥 Proxy #%d: CHANGE DETECTED! Processing...", proxyIndex+1)
-                        newETag := resp.Header.Get("ETag")
-                        
-                        // Save ETag for this specific proxy and log the change atomically
-                        um.etagMu.Lock()
-                        oldETagValue := um.proxyETags[proxyIndex]
-                        um.proxyETags[proxyIndex] = newETag
-                        um.etagMu.Unlock()
-                        
-                        // Log ETag change to etag_news.json (async, with captured oldETag)
-                        go um.logETagChange(proxyIndex, oldETagValue, newETag, responseTime)
-                        
-                        um.processAnnouncements(resp.Body)
-                        resp.Body.Close()
+        case http.StatusNotModified:
+                log.Printf("✓ Proxy #%d: No change (304)", proxyIndex+1)
+                resp.Body.Close()
 
-                case http.StatusNotModified:
-                        log.Printf("✓ Proxy #%d: No change (304)", proxyIndex+1)
-                        resp.Body.Close()
+        case http.StatusTooManyRequests: // 429 - Rate Limited
+                log.Printf("⚠️ Proxy #%d: RATE LIMITED (429) - Blacklisting for 30s", proxyIndex+1)
+                resp.Body.Close()
+                
+                // Add to blacklist for 30 seconds
+                um.blacklistMu.Lock()
+                um.proxyBlacklist[proxyIndex] = time.Now().Add(30 * time.Second)
+                um.blacklistMu.Unlock()
 
-                default:
-                        log.Printf("⚠️ Proxy #%d: Unexpected status %d", proxyIndex+1, resp.StatusCode)
-                        resp.Body.Close()
-                }
+        default:
+                log.Printf("⚠️ Proxy #%d: Unexpected status %d", proxyIndex+1, resp.StatusCode)
+                resp.Body.Close()
         }
 }
 
 func (um *UpbitMonitor) Start() {
-        log.Println("🚀 Upbit Monitor Starting with DYNAMIC PARALLEL PROXY EXECUTION...")
-        
+        log.Println("🚀 Upbit Monitor Starting with INTELLIGENT PROXY POOL...")
+
         if err := um.loadExistingData(); err != nil {
                 log.Printf("⚠️ Warning: %v", err)
         }
@@ -509,58 +508,102 @@ func (um *UpbitMonitor) Start() {
                 log.Fatal("❌ No proxies configured! Please add UPBIT_PROXY_* to .env file")
         }
 
-        // DYNAMIC CALCULATION based on proxy count
-        // Upbit Announcements API: ~3-4 req/sec TOTAL limit (empirically tested)
-        // Using 4s interval for 333ms (0.333s) coverage with 12 proxies (SAFE PRODUCTION)
-        proxyInterval := 4.0 // seconds per proxy (900 req/hour per proxy, TOTAL: 3 req/sec)
-        requestsPerHour := 3600 / proxyInterval // 450 req/hour per proxy
-        
-        // Stagger dynamically: spread interval across all proxies
-        staggerMs := int((proxyInterval * 1000.0 / float64(proxyCount))) // milliseconds
-        coverageSeconds := float64(staggerMs) / 1000.0
-        checksPerSecond := 1.0 / coverageSeconds
-        
-        log.Printf("📊 DYNAMIC PROXY CONFIGURATION:")
+        // INTELLIGENT PROXY POOL CONFIGURATION
+        // Strategy: Shuffle all proxies every cycle, use each proxy once per cycle
+        // Cycle duration: ~1 second (50ms stagger × 22 proxies = 1.1s)
+        // Coverage: 50ms between each request
+        staggerMs := 50 // milliseconds between each proxy request
+        cycleSeconds := float64(proxyCount*staggerMs) / 1000.0
+        checksPerSecond := float64(proxyCount) / cycleSeconds
+
+        log.Printf("📊 INTELLIGENT PROXY POOL CONFIGURATION:")
         log.Printf("   • Total Proxies: %d", proxyCount)
-        log.Printf("   • Rate Limit: %.0f req/hour per proxy (%.2f req/sec, limit: 10 req/sec)", requestsPerHour, requestsPerHour/3600.0)
-        log.Printf("   • Interval: %.1fs per proxy", proxyInterval)
-        log.Printf("   • Stagger: %dms between workers", staggerMs)
-        log.Printf("   • Origin header: REMOVED (avoids 1 req/10s strict limit)")
+        log.Printf("   • Stagger: %dms between proxies", staggerMs)
+        log.Printf("   • Cycle Duration: %.2fs (all proxies checked once)", cycleSeconds)
+        log.Printf("   • Blacklist: 30s timeout for rate-limited proxies")
         log.Printf("⚡ PERFORMANCE:")
-        log.Printf("   • Coverage: %.0fms (%.3fs)", coverageSeconds*1000, coverageSeconds)
+        log.Printf("   • Coverage: %dms between requests", staggerMs)
         log.Printf("   • Speed: ~%.1f checks/second", checksPerSecond)
-        log.Printf("   • Total capacity: %.0f req/hour", float64(proxyCount)*requestsPerHour)
+        log.Printf("   • Random shuffle every cycle (unpredictable pattern)")
 
-        // RANDOMIZE proxy order to avoid bot detection & throttling
-        // Shuffle proxy indices to make pattern unpredictable
-        proxyIndices := make([]int, proxyCount)
-        for i := 0; i < proxyCount; i++ {
-                proxyIndices[i] = i
-        }
-        
-        // Fisher-Yates shuffle
         rand.Seed(time.Now().UnixNano())
-        for i := proxyCount - 1; i > 0; i-- {
-                j := rand.Intn(i + 1)
-                proxyIndices[i], proxyIndices[j] = proxyIndices[j], proxyIndices[i]
+
+        // Continuous cycle loop
+        for {
+                // Get available (non-blacklisted) proxies
+                availableIndices := um.getAvailableProxies()
+                
+                if len(availableIndices) == 0 {
+                        log.Printf("⚠️ All proxies blacklisted! Waiting 5s...")
+                        time.Sleep(5 * time.Second)
+                        continue
+                }
+
+                // SHUFFLE proxies for this cycle (different order every time)
+                rand.Shuffle(len(availableIndices), func(i, j int) {
+                        availableIndices[i], availableIndices[j] = availableIndices[j], availableIndices[i]
+                })
+
+                log.Printf("🎲 New cycle: %d available proxies, first 5: #%d, #%d, #%d, #%d, #%d", 
+                        len(availableIndices),
+                        availableIndices[0]+1, 
+                        availableIndices[min(1, len(availableIndices)-1)]+1,
+                        availableIndices[min(2, len(availableIndices)-1)]+1,
+                        availableIndices[min(3, len(availableIndices)-1)]+1,
+                        availableIndices[min(4, len(availableIndices)-1)]+1)
+
+                // Launch all proxies in parallel with stagger
+                for i, proxyIndex := range availableIndices {
+                        proxyURL := um.proxies[proxyIndex]
+                        delay := time.Duration(i*staggerMs) * time.Millisecond
+                        go um.checkProxyWithDelay(proxyURL, proxyIndex, delay)
+                }
+
+                // Wait for cycle to complete before starting next cycle
+                cycleDuration := time.Duration(len(availableIndices)*staggerMs) * time.Millisecond
+                time.Sleep(cycleDuration)
         }
-        
-        log.Printf("🎲 RANDOMIZED PROXY ORDER (anti-throttling):")
-        log.Printf("   First 5 proxies: #%d, #%d, #%d, #%d, #%d", 
-                proxyIndices[0]+1, proxyIndices[1]+1, proxyIndices[2]+1, 
-                proxyIndices[3]+1, proxyIndices[4]+1)
-        
-        // Launch parallel workers with randomized order
-        for executionOrder, proxyIndex := range proxyIndices {
-                proxyURL := um.proxies[proxyIndex]
-                // Add random jitter (0-500ms) to break pattern further
-                jitter := rand.Intn(500)
-                totalStagger := executionOrder*staggerMs + jitter
-                go um.startProxyWorker(proxyURL, proxyIndex, totalStagger)
+}
+
+// Helper function for min
+func min(a, b int) int {
+        if a < b {
+                return a
+        }
+        return b
+}
+
+// getAvailableProxies returns indices of proxies that are not blacklisted
+func (um *UpbitMonitor) getAvailableProxies() []int {
+        um.blacklistMu.RLock()
+        defer um.blacklistMu.RUnlock()
+
+        now := time.Now()
+        var available []int
+
+        for i := range um.proxies {
+                expireTime, isBlacklisted := um.proxyBlacklist[i]
+                if !isBlacklisted || now.After(expireTime) {
+                        // Not blacklisted or blacklist expired
+                        if isBlacklisted && now.After(expireTime) {
+                                // Remove expired blacklist entry
+                                um.blacklistMu.RUnlock()
+                                um.blacklistMu.Lock()
+                                delete(um.proxyBlacklist, i)
+                                um.blacklistMu.Unlock()
+                                um.blacklistMu.RLock()
+                        }
+                        available = append(available, i)
+                }
         }
 
-        // Keep main goroutine alive
-        select {}
+        return available
+}
+
+// checkProxyWithDelay checks a single proxy after a delay
+func (um *UpbitMonitor) checkProxyWithDelay(proxyURL string, proxyIndex int, delay time.Duration) {
+        time.Sleep(delay)
+        um.checkProxy(proxyURL, proxyIndex)
 }
 
 // appendTradeLog appends a trade execution log entry to the JSON file
