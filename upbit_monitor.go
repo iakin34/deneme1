@@ -5,6 +5,7 @@ import (
         "fmt"
         "io"
         "log"
+        "math/rand"
         "net/http"
         "net/url"
         "os"
@@ -419,9 +420,9 @@ func (um *UpbitMonitor) processAnnouncements(body io.Reader) {
         log.Printf("📊 Cached tickers count: %d, Current API response: %v", len(um.cachedTickers), newTickersList)
 }
 
-func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, staggerMs int) {
-        // Stagger start times dynamically based on proxy count
-        staggerDelay := time.Duration(proxyIndex*staggerMs) * time.Millisecond
+func (um *UpbitMonitor) startProxyWorker(proxyURL string, proxyIndex int, totalStaggerMs int) {
+        // Use the provided totalStaggerMs (includes randomization & jitter)
+        staggerDelay := time.Duration(totalStaggerMs) * time.Millisecond
         time.Sleep(staggerDelay)
 
         // Upbit Announcements API: ~3-4 req/sec TOTAL limit (empirically tested)
@@ -530,9 +531,32 @@ func (um *UpbitMonitor) Start() {
         log.Printf("   • Speed: ~%.1f checks/second", checksPerSecond)
         log.Printf("   • Total capacity: %.0f req/hour", float64(proxyCount)*requestsPerHour)
 
-        // Launch parallel workers for each proxy with dynamic stagger
-        for i, proxyURL := range um.proxies {
-                go um.startProxyWorker(proxyURL, i, staggerMs)
+        // RANDOMIZE proxy order to avoid bot detection & throttling
+        // Shuffle proxy indices to make pattern unpredictable
+        proxyIndices := make([]int, proxyCount)
+        for i := 0; i < proxyCount; i++ {
+                proxyIndices[i] = i
+        }
+        
+        // Fisher-Yates shuffle
+        rand.Seed(time.Now().UnixNano())
+        for i := proxyCount - 1; i > 0; i-- {
+                j := rand.Intn(i + 1)
+                proxyIndices[i], proxyIndices[j] = proxyIndices[j], proxyIndices[i]
+        }
+        
+        log.Printf("🎲 RANDOMIZED PROXY ORDER (anti-throttling):")
+        log.Printf("   First 5 proxies: #%d, #%d, #%d, #%d, #%d", 
+                proxyIndices[0]+1, proxyIndices[1]+1, proxyIndices[2]+1, 
+                proxyIndices[3]+1, proxyIndices[4]+1)
+        
+        // Launch parallel workers with randomized order
+        for executionOrder, proxyIndex := range proxyIndices {
+                proxyURL := um.proxies[proxyIndex]
+                // Add random jitter (0-500ms) to break pattern further
+                jitter := rand.Intn(500)
+                totalStagger := executionOrder*staggerMs + jitter
+                go um.startProxyWorker(proxyURL, proxyIndex, totalStagger)
         }
 
         // Keep main goroutine alive
