@@ -201,7 +201,7 @@ func NewTelegramBot(token string) (*TelegramBot, error) {
         // Start position reminder system
         go botInstance.startPositionReminders()
 
-        // Start 6-hour status notifications
+        // Start 4-hour status notifications
         go botInstance.startStatusNotifications()
 
         return botInstance, nil
@@ -1691,57 +1691,85 @@ func StartTradingBot() {
         bot.Start()
 }
 
-// Start 6-hour status notification system
+// Start 4-hour status notification system
 func (tb *TelegramBot) startStatusNotifications() {
-        log.Printf("📢 Starting 6-hour status notification system...")
+        log.Printf("📢 Starting 4-hour status notification system...")
         
-        // Her 6 saatte bir çalış
-        ticker := time.NewTicker(6 * time.Hour)
+        // Her 4 saatte bir çalış
+        ticker := time.NewTicker(4 * time.Hour)
         defer ticker.Stop()
         
-        // Farklı esprili mesajlar
+        // Yaratıcı ve esprili mesajlar
         messages := []string{
-                `🚀 **Patron Rahat Ol!** 
+                `🚀 **Robot Nöbetinde!**
 
-📊 Sistem full performansta çalışıyor!
-🎯 @AstronomicaNews'u takip ediyoruz
-💰 Yeni coin → Otomatik para kazanma modu aktif
-⚡ Ready to make money! 💸`,
+⚡ Sistem 7/24 Upbit'i taramaya devam ediyor
+💎 Yeni listing → Otomatik alım modu hazır
+🎯 Her şey kontrolümüz altında
+💸 Şimdi rahat uyu, biz hallederiz!`,
 
-                `💎 **Boss, Everything Under Control!**
+                `💰 **Para Avcısı Aktif!**
 
-🔥 Bot sistemi 7/24 nöbette!  
-👀 Upbit'teki her hareketi izliyoruz
-💸 Listing anında → Ka-ching! 💰
-🚀 Next millionaire loading... ⏳`,
+🔥 300ms hızda listing tespiti yapıyoruz
+🎲 Sistem tam gaz çalışıyor
+⚡ Bir listing çıksa da vursak...
+😎 Bot modunda beklemede!`,
 
-                `⚡ **Patron, Para Makinesi Çalışıyor!**
+                `🎯 **Sniper Mode ON!**
 
-🎯 Sistem stabil ve hazır bekliyor
-👁️ Coin takip sistemi: ✅ Aktif
-🤑 Auto-trade modu: ✅ Silahlı ve hazır  
-💪 Upbit listing = Bizim şansımız! 🎰`,
+✨ Ultra-hızlı tespit sistemi hazırda bekliyor
+💎 Yeni coin listingi = Bizim fırsatımız
+🚀 Proxy'ler döndürüyor, sistem stabil
+🤑 Next opportunity loading...`,
 
-                `🎰 **Casino Kapalı, Biz Açığız!**
+                `⚡ **Speed Demon Aktif!**
 
-✨ Bot sistemi smooth çalışıyor
-🔍 Her Upbit coin'i radar altında
-💵 Listing news → Instant action!
-😎 Chill yap patron, bot çalışıyor! 🍹`,
+🔍 Upbit'in her duyurusunu 0.9 saniyede yakalıyoruz
+💸 Listing anı = Action time!
+🎰 Şans oyunu değil, hız oyunu!
+💪 Sistem full throttle çalışıyor!`,
 
-                `🚀 **Houston, No Problem Here!**
+                `🏎️ **Hız Sınırı Yok!**
 
-📈 Sistem operasyonel durumda
-🎯 Target: Upbit new listings  
-💰 Mission: Para kazanmak!
-✅ Bot status: Ready to rock! 🤘`,
+🚀 Sub-second detection sistemi online
+💎 Proxy rotation: Check ✅
+⚡ Auto-trade ready: Check ✅
+🔥 Biz her zaman bir adım önündeyiz!`,
 
-                `💪 **Alpha Bot Mode Aktif!**
+                `🎮 **Game Mode: GRINDING**
 
-🔥 Sistemler GO durumunda
-🎯 Upbit coin'leri keşif modunda
-💎 Listing = Profit opportunity!
-🚀 Biz hazırız, Upbit hazır mı? 😏`,
+💰 Upbit listing farmlamaya devam
+🎯 Bot sistemi kesintisiz çalışıyor
+⚡ Yeni coin → Instant execution
+😏 AFK para kasıyoruz pratik olarak!`,
+
+                `🌙 **Gece Nöbetçisi Burada!**
+
+✨ İster uyku, ister iş - bot her zaman aktif
+💎 Listing detection: Never sleeps
+🚀 Para kazanma fırsatı kaçmaz
+💪 24/7 grind mode activated!`,
+
+                `🔥 **Full Send Modu!**
+
+⚡ Sistem hazır, finger on the trigger
+💰 Next Upbit listing bizim target
+🎯 No hesitation, pure execution
+🚀 Ready to catch that moon shot!`,
+
+                `💎 **Diamond Hands Bot!**
+
+✨ Sabırla bekliyor, hızla vuruyor
+🎲 Timing is everything, we got it
+⚡ Listing anında → Lightning fast entry
+💸 Para makinesi standby modunda!`,
+
+                `🎪 **Show Must Go On!**
+
+🚀 Bot performansı: Oscar worthy
+💰 Listing hunt devam ediyor
+⚡ Non-stop action, zero chill
+🔥 We don't stop, we just reload!`,
         }
         
         messageIndex := 0
@@ -1749,7 +1777,7 @@ func (tb *TelegramBot) startStatusNotifications() {
         for {
                 select {
                 case <-ticker.C:
-                        log.Printf("📢 6-hour status notification triggered")
+                        log.Printf("📢 4-hour status notification triggered")
                         
                         // Tüm aktif kullanıcılara mesaj gönder
                         tb.database.mutex.Lock()
