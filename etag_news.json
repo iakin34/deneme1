@@ -971,6 +971,33 @@
       "old_etag": "",
       "new_etag": "W/\"08f945ec8d8af70342bf8ce8f0d46c815\"",
       "response_time_ms": 1196
+    },
+    {
+      "proxy_index": 1,
+      "proxy_name": "Proxy #1 (Seoul)",
+      "detected_at": "2025-10-21 11:03:48.459",
+      "server_time": "2025-10-21T11:03:48.459988745Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1193
+    },
+    {
+      "proxy_index": 6,
+      "proxy_name": "Proxy #6",
+      "detected_at": "2025-10-21 11:03:59.691",
+      "server_time": "2025-10-21T11:03:59.691792906Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1200
+    },
+    {
+      "proxy_index": 22,
+      "proxy_name": "Proxy #22",
+      "detected_at": "2025-10-21 11:04:15.331",
+      "server_time": "2025-10-21T11:04:15.331038266Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1097
     }
   ]
 }
