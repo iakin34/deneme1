@@ -87,6 +87,13 @@ type UpbitMonitor struct {
         // Intelligent Proxy Pool (Blacklist for rate-limited proxies)
         proxyBlacklist   map[int]time.Time // proxy index -> blacklist expire time
         blacklistMu      sync.RWMutex
+        // Timezone-based Scheduling
+        pauseEnabled     bool
+        pauseStart       int // Minutes since midnight (e.g., 13:00 = 780)
+        pauseEnd         int // Minutes since midnight (e.g., 03:00 = 180)
+        timezone         *time.Location
+        isPaused         bool
+        pauseMu          sync.Mutex
 }
 
 func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
@@ -111,6 +118,21 @@ func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
                 log.Printf("✅ Loaded %d proxies from environment variables", len(proxies))
         }
 
+        // Load pause configuration
+        pauseEnabled := os.Getenv("UPBIT_MONITOR_PAUSE_ENABLED") == "true"
+        pauseStart := parseTimeToMinutes(os.Getenv("UPBIT_MONITOR_PAUSE_START"), 780)   // Default: 13:00
+        pauseEnd := parseTimeToMinutes(os.Getenv("UPBIT_MONITOR_PAUSE_END"), 180)       // Default: 03:00
+        tzName := os.Getenv("UPBIT_MONITOR_TZ")
+        if tzName == "" {
+                tzName = "Europe/Istanbul" // Default: Turkey time (UTC+3)
+        }
+        
+        timezone, err := time.LoadLocation(tzName)
+        if err != nil {
+                log.Printf("⚠️ Invalid timezone '%s', using UTC", tzName)
+                timezone = time.UTC
+        }
+
         return &UpbitMonitor{
                 apiURL:           "https://api-manager.upbit.com/api/v1/announcements?os=web&page=1&per_page=20&category=overall",
                 proxies:          proxies,
@@ -123,7 +145,36 @@ func NewUpbitMonitor(onNewListing func(string)) *UpbitMonitor {
                 proxyBlacklist:   make(map[int]time.Time), // Initialize blacklist
                 etagLogFile:      "etag_news.json",
                 onNewListing:     onNewListing,
+                pauseEnabled:     pauseEnabled,
+                pauseStart:       pauseStart,
+                pauseEnd:         pauseEnd,
+                timezone:         timezone,
+                isPaused:         false,
         }
+}
+
+// parseTimeToMinutes converts "HH:MM" to minutes since midnight
+func parseTimeToMinutes(timeStr string, defaultMinutes int) int {
+        if timeStr == "" {
+                return defaultMinutes
+        }
+        
+        parts := regexp.MustCompile(`^(\d{1,2}):(\d{2})$`).FindStringSubmatch(timeStr)
+        if len(parts) != 3 {
+                log.Printf("⚠️ Invalid time format '%s', using default", timeStr)
+                return defaultMinutes
+        }
+        
+        var hour, minute int
+        fmt.Sscanf(parts[1], "%d", &hour)
+        fmt.Sscanf(parts[2], "%d", &minute)
+        
+        if hour < 0 || hour > 23 || minute < 0 || minute > 59 {
+                log.Printf("⚠️ Invalid time values in '%s', using default", timeStr)
+                return defaultMinutes
+        }
+        
+        return hour*60 + minute
 }
 
 func (um *UpbitMonitor) createProxyClient(proxyURL string) (*http.Client, error) {
@@ -540,9 +591,43 @@ func (um *UpbitMonitor) Start() {
         ticker := time.NewTicker(time.Duration(checkIntervalMs) * time.Millisecond)
         defer ticker.Stop()
 
+        // Log pause configuration if enabled
+        if um.pauseEnabled {
+                log.Printf("⏸️  PAUSE SCHEDULE ENABLED:")
+                log.Printf("   • Timezone: %s", um.timezone.String())
+                log.Printf("   • Pause: %02d:%02d - %02d:%02d", 
+                        um.pauseStart/60, um.pauseStart%60,
+                        um.pauseEnd/60, um.pauseEnd%60)
+        }
+
         log.Println("🚀 Random proxy rotation started!")
 
         for range ticker.C {
+                // Check if we should pause (timezone-based scheduling)
+                if um.pauseEnabled && um.shouldPauseNow() {
+                        um.pauseMu.Lock()
+                        if !um.isPaused {
+                                um.isPaused = true
+                                now := time.Now().In(um.timezone)
+                                log.Printf("⏸️  PAUSING monitor (quiet hours) - Current time: %s %s", 
+                                        now.Format("15:04:05"), um.timezone.String())
+                                log.Printf("   Will resume at %02d:%02d %s", 
+                                        um.pauseEnd/60, um.pauseEnd%60, um.timezone.String())
+                        }
+                        um.pauseMu.Unlock()
+                        continue
+                }
+
+                // Check if we just resumed
+                um.pauseMu.Lock()
+                if um.isPaused {
+                        um.isPaused = false
+                        now := time.Now().In(um.timezone)
+                        log.Printf("▶️  RESUMING monitor - Current time: %s %s", 
+                                now.Format("15:04:05"), um.timezone.String())
+                }
+                um.pauseMu.Unlock()
+
                 // Get available (non-blacklisted) proxies
                 availableIndices := um.getAvailableProxies()
                 
@@ -558,6 +643,21 @@ func (um *UpbitMonitor) Start() {
                 // Perform check with selected proxy
                 um.checkProxy(proxyURL, randomIndex)
         }
+}
+
+// shouldPauseNow checks if current time is within pause window
+func (um *UpbitMonitor) shouldPauseNow() bool {
+        now := time.Now().In(um.timezone)
+        currentMinutes := now.Hour()*60 + now.Minute()
+
+        // Handle overnight window (e.g., 13:00-03:00 = 780-180)
+        if um.pauseStart > um.pauseEnd {
+                // Overnight: pause if >= start OR < end
+                return currentMinutes >= um.pauseStart || currentMinutes < um.pauseEnd
+        }
+        
+        // Same-day window (e.g., 01:00-05:00 = 60-300)
+        return currentMinutes >= um.pauseStart && currentMinutes < um.pauseEnd
 }
 
 // getAvailableProxies returns indices of proxies that are not blacklisted
