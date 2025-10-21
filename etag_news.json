@@ -998,6 +998,78 @@
       "old_etag": "",
       "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
       "response_time_ms": 1097
+    },
+    {
+      "proxy_index": 3,
+      "proxy_name": "Proxy #3",
+      "detected_at": "2025-10-21 11:05:42.765",
+      "server_time": "2025-10-21T11:05:42.765988044Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1532
+    },
+    {
+      "proxy_index": 7,
+      "proxy_name": "Proxy #7",
+      "detected_at": "2025-10-21 11:06:31.494",
+      "server_time": "2025-10-21T11:06:31.494842542Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1255
+    },
+    {
+      "proxy_index": 2,
+      "proxy_name": "Proxy #2 (Seoul)",
+      "detected_at": "2025-10-21 11:06:32.830",
+      "server_time": "2025-10-21T11:06:32.830388711Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1115
+    },
+    {
+      "proxy_index": 1,
+      "proxy_name": "Proxy #1 (Seoul)",
+      "detected_at": "2025-10-21 11:07:56.568",
+      "server_time": "2025-10-21T11:07:56.568889513Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1110
+    },
+    {
+      "proxy_index": 5,
+      "proxy_name": "Proxy #5",
+      "detected_at": "2025-10-21 11:07:57.691",
+      "server_time": "2025-10-21T11:07:57.691257499Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1103
+    },
+    {
+      "proxy_index": 22,
+      "proxy_name": "Proxy #22",
+      "detected_at": "2025-10-21 11:07:58.837",
+      "server_time": "2025-10-21T11:07:58.837339002Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1118
+    },
+    {
+      "proxy_index": 3,
+      "proxy_name": "Proxy #3",
+      "detected_at": "2025-10-21 11:08:10.452",
+      "server_time": "2025-10-21T11:08:10.452976178Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1232
+    },
+    {
+      "proxy_index": 20,
+      "proxy_name": "Proxy #20",
+      "detected_at": "2025-10-21 11:08:13.460",
+      "server_time": "2025-10-21T11:08:13.460262457Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1118
     }
   ]
 }
