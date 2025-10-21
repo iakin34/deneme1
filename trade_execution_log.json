@@ -12,5 +12,19 @@
       "file_to_bitget_ms": 403,
       "total_execution_ms": 724
     }
+  },
+  {
+    "ticker": "F",
+    "upbit_detected_at": "2025-10-21 09:17:41.962165",
+    "saved_to_file_at": "2025-10-21 09:17:41.962893",
+    "user_id": 625972998,
+    "bitget_order_sent_at": "2025-10-21 09:17:42.346334",
+    "bitget_order_confirmed_at": "2025-10-21 09:17:42.688022",
+    "latency_breakdown": {
+      "bitget_response_ms": 341,
+      "detection_to_file_ms": 0,
+      "file_to_bitget_ms": 383,
+      "total_execution_ms": 725
+    }
   }
 ]
