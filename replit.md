@@ -64,6 +64,26 @@ Preferred communication style: Simple, everyday language.
 - Latency breakdown per stage
 - Saved to `trade_execution_log.json`
 
+## Timezone-based Pause/Resume Scheduling (2025-10-21)
+- **NEW FEATURE: Quiet Hours Scheduling**
+  - Automatically pause monitoring during specified hours (e.g., overnight)
+  - Configurable via `.env`: `UPBIT_MONITOR_PAUSE_ENABLED`, `UPBIT_MONITOR_PAUSE_START`, `UPBIT_MONITOR_PAUSE_END`
+  - **Timezone support**: `UPBIT_MONITOR_TZ` (default: `Europe/Istanbul` for TR time)
+  - **Overnight window support**: Handles time ranges crossing midnight (e.g., 13:00-03:00) ✅
+  - **Implementation**: Ticker continues running, checks skipped during pause window
+  - **Logging**: Single pause/resume events logged (not spammy)
+  - **Use case**: Save resources during low-activity hours without stopping the bot
+
+- **Configuration Example:**
+  ```env
+  UPBIT_MONITOR_PAUSE_ENABLED=true
+  UPBIT_MONITOR_PAUSE_START=13:00
+  UPBIT_MONITOR_PAUSE_END=03:00
+  UPBIT_MONITOR_TZ=Europe/Istanbul
+  ```
+
+- **Stability Tested:** 2.5-minute test (start → 60s run → stop → 60s wait → restart → 30s run) - All passed ✅
+
 ## Performance Achieved (2025-10-21)
 - **Production Configuration**: 300ms interval (3.33 req/sec) ✅
 - **Target ACHIEVED**: Sub-second detection (0.3s goal)
@@ -75,6 +95,7 @@ Preferred communication style: Simple, everyday language.
 - **Upbit Safe Limit**: 3.33 req/sec TOTAL across all IPs (empirically tested)
 - **Working Proxies**: 11 out of 22 proxies operational (sufficient for coverage)
 - **ETag change detection logging**: Tracks which proxy detected changes first (saved to etag_news.json)
+- **Restart Stability**: Multiple start/stop cycles tested successfully (2025-10-21)
 
 # System Architecture
 
