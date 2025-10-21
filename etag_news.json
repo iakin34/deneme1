@@ -1070,6 +1070,15 @@
       "old_etag": "",
       "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
       "response_time_ms": 1118
+    },
+    {
+      "proxy_index": 6,
+      "proxy_name": "Proxy #6",
+      "detected_at": "2025-10-21 11:09:31.525",
+      "server_time": "2025-10-21T11:09:31.525191489Z",
+      "old_etag": "",
+      "new_etag": "W/\"0649097f2ca070f4d5791378cf461666a\"",
+      "response_time_ms": 1199
     }
   ]
 }
