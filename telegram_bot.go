@@ -6,7 +6,7 @@ import (
         "crypto/rand"
         "crypto/sha256"
         "encoding/base64"
-        "encoding/json"
+        json "github.com/json-iterator/go"
         "fmt"
         "io"
         "io/ioutil"
@@ -443,18 +443,29 @@ func (tb *TelegramBot) getLatestDetectedSymbol() string {
                 return ""
         }
 
-        var upbitData UpbitData
-        if err := json.Unmarshal(data, &upbitData); err != nil {
-                log.Printf("Warning: Could not parse upbit_new.json: %v", err)
+        // Parse JSONL format - read last line for most recent entry
+        lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+        if len(lines) == 0 {
                 return ""
         }
 
-        if len(upbitData.Listings) == 0 {
-                return ""
+        // Get the last non-empty line (most recent entry)
+        var lastEntry ListingEntry
+        for i := len(lines) - 1; i >= 0; i-- {
+                line := strings.TrimSpace(lines[i])
+                if line == "" {
+                        continue
+                }
+                
+                if err := json.Unmarshal([]byte(line), &lastEntry); err != nil {
+                        log.Printf("Warning: Could not parse JSON line: %v", err)
+                        continue
+                }
+                
+                return lastEntry.Symbol
         }
 
-        // Return the latest (first) detection symbol - Go monitor inserts new listings at index 0
-        return upbitData.Listings[0].Symbol
+        return ""
 }
 
 // Process upbit_new.json changes and trigger auto-trading
